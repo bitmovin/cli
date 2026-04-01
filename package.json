@@ -46,6 +46,7 @@
   "dependencies": {
     "@bitmovin/api-sdk": "^1.260.0",
     "@oclif/core": "^4",
+    "@oclif/plugin-autocomplete": "^3.2.43",
     "ajv": "^8.17.1",
     "chalk": "^5.4.1",
     "cli-progress": "^3.12.0",
@@ -69,6 +70,9 @@
   "oclif": {
     "bin": "bitmovin",
     "dirname": "bitmovin",
+    "plugins": [
+      "@oclif/plugin-autocomplete"
+    ],
     "commands": {
       "strategy": "pattern",
       "target": "./dist/commands"
