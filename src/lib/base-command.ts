@@ -1,30 +1,9 @@
 import {Command, Flags} from '@oclif/core';
 import chalk from 'chalk';
-import {getClient} from './client.js';
+import {getClient, type ApiClient} from './client.js';
 import {formatJson, formatTable, formatKeyValue, isTTY} from './output.js';
 import {applyJq} from './jq.js';
 import {loadConfig} from './config.js';
-
-// Parse --json with optional =fields from raw argv
-function parseJsonFlag(argv: string[]): {enabled: boolean; fields?: string[]} {
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]!;
-    if (arg === '--json' || arg === '-j') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('-')) {
-        return {enabled: true, fields: next.split(',').map((f) => f.trim())};
-      }
-
-      return {enabled: true};
-    }
-
-    if (arg.startsWith('--json=')) {
-      return {enabled: true, fields: arg.slice(7).split(',').map((f) => f.trim())};
-    }
-  }
-
-  return {enabled: false};
-}
 
 export abstract class BaseCommand extends Command {
   static baseFlags = {
@@ -32,6 +11,9 @@ export abstract class BaseCommand extends Command {
       char: 'j',
       description: 'Output JSON to stdout. Use with --jq for filtering.',
       default: false,
+    }),
+    fields: Flags.string({
+      description: 'Comma-separated list of fields to include in JSON output (implies --json)',
     }),
     jq: Flags.string({
       description: 'Filter JSON output with a jq expression (implies --json)',
@@ -46,7 +28,7 @@ export abstract class BaseCommand extends Command {
   };
 
   private _parsedFlags?: Record<string, unknown>;
-  private _api?: any;
+  private _api?: ApiClient;
   private _jsonMode?: {enabled: boolean; fields?: string[]};
 
   /**
@@ -137,16 +119,16 @@ export abstract class BaseCommand extends Command {
     if (!this._parsedFlags) {
       const {flags} = await this.parse(this.constructor as any);
       this._parsedFlags = flags;
-      this._jsonMode = parseJsonFlag(this.argv);
-      if (flags.jq && !this._jsonMode.enabled) {
-        this._jsonMode = {enabled: true};
-      }
+      const fieldsStr = flags.fields as string | undefined;
+      const fields = fieldsStr ? fieldsStr.split(',').map((f: string) => f.trim()) : undefined;
+      const enabled = Boolean(flags.json || flags.jq || fields);
+      this._jsonMode = {enabled, fields};
     }
 
     return this._parsedFlags;
   }
 
-  protected async getApi(): Promise<any> {
+  protected async getApi(): Promise<ApiClient> {
     if (!this._api) {
       const flags = await this.parseFlags();
       this._api = getClient(flags['api-key'] as string | undefined);

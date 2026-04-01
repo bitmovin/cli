@@ -53,6 +53,7 @@
     "ora": "^8.1.1"
   },
   "devDependencies": {
+    "@oclif/plugin-plugins": "^5.4.59",
     "@oclif/test": "^4.1.17",
     "@types/cli-progress": "^3.11.6",
     "@types/js-yaml": "^4.0.9",
@@ -71,6 +72,9 @@
       "strategy": "pattern",
       "target": "./dist/commands"
     },
+    "hooks": {
+      "command_not_found": "./dist/hooks/command-not-found"
+    },
     "topicSeparator": " ",
     "topics": {
       "config": {
@@ -82,31 +86,31 @@
       "encoding": {
         "description": "Encoding operations"
       },
-      "encoding:template": {
+      "encoding:templates": {
         "description": "Encoding templates (YAML-based workflows)"
       },
-      "encoding:job": {
+      "encoding:jobs": {
         "description": "Encoding job management"
       },
-      "encoding:input": {
+      "encoding:inputs": {
         "description": "Input source management"
       },
-      "encoding:input:create": {
+      "encoding:inputs:create": {
         "description": "Create input sources"
       },
-      "encoding:output": {
+      "encoding:outputs": {
         "description": "Output destination management"
       },
-      "encoding:output:create": {
+      "encoding:outputs:create": {
         "description": "Create output destinations"
       },
-      "encoding:codec": {
+      "encoding:codecs": {
         "description": "Codec configuration management"
       },
-      "encoding:codec:create": {
+      "encoding:codecs:create": {
         "description": "Create codec configurations"
       },
-      "encoding:manifest": {
+      "encoding:manifests": {
         "description": "Manifest management"
       },
       "player": {

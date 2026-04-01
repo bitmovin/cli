@@ -12,7 +12,7 @@ export default class ConfigListOrganizations extends BaseCommand {
   static override examples = [
     'bitmovin config list organizations',
     'bitmovin config list organizations --json',
-    'bitmovin config list organizations --json id,name --jq ".[].name"',
+    'bitmovin config list organizations --fields id,name --jq ".[].name"',
   ];
 
   async run(): Promise<void> {

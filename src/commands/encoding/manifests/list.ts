@@ -8,16 +8,18 @@ export default class EncodingManifestList extends BaseCommand {
     ...BaseCommand.baseFlags,
     type: Flags.string({description: 'Filter by manifest type', options: ['dash', 'hls', 'smooth']}),
     limit: Flags.integer({description: 'Max results', default: 25}),
+    offset: Flags.integer({description: 'Offset for pagination', default: 0}),
   };
 
   async run(): Promise<void> {
     const {flags} = await this.parse(EncodingManifestList);
     const listFn = (q: any) => {
       q.limit(flags.limit);
+      q.offset(flags.offset);
       return q;
     };
 
-    let items: Record<string, unknown>[];
+    let items: unknown[];
     if (flags.type === 'dash') {
       items = (await (await this.getApi()).encoding.manifests.dash.list(listFn)).items ?? [];
     } else if (flags.type === 'hls') {

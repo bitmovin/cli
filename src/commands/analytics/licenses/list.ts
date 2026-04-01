@@ -7,12 +7,14 @@ export default class AnalyticsLicenseList extends BaseCommand {
   static override flags = {
     ...BaseCommand.baseFlags,
     limit: Flags.integer({description: 'Max results', default: 25}),
+    offset: Flags.integer({description: 'Offset for pagination', default: 0}),
   };
 
   async run(): Promise<void> {
     const {flags} = await this.parse(AnalyticsLicenseList);
     const result = await (await this.getApi()).analytics.licenses.list((q: any) => {
       q.limit(flags.limit);
+      q.offset(flags.offset);
       return q;
     });
 

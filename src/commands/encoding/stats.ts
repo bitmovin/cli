@@ -14,6 +14,10 @@ export default class EncodingStats extends BaseCommand {
   async run(): Promise<void> {
     const {flags} = await this.parse(EncodingStats);
 
+    if ((flags.from && !flags.to) || (!flags.from && flags.to)) {
+      this.error('Both --from and --to must be provided together for a date range query.');
+    }
+
     if (flags.from && flags.to) {
       const result = await (await this.getApi()).encoding.statistics.daily.listByDateRange(
         new Date(flags.from),

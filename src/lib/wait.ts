@@ -1,5 +1,6 @@
 import ora from 'ora';
 import chalk from 'chalk';
+import {colorizeStatus} from './output.js';
 
 const POLL_INTERVAL_MS = 5000;
 const TERMINAL_STATUSES = new Set(['FINISHED', 'ERROR', 'CANCELED', 'TRANSFER_ERROR']);
@@ -19,7 +20,7 @@ export async function waitForEncoding(api: any, encodingId: string): Promise<any
 
     if (spinner) {
       const bar = progressBar(progress);
-      spinner.text = `Encoding ${encodingId}  ${bar}  ${progress}%${eta}  [${statusColor(status)}]`;
+      spinner.text = `Encoding ${encodingId}  ${bar}  ${progress}%${eta}  [${colorizeStatus(status)}]`;
     } else {
       process.stderr.write(`${encodingId}\t${status}\t${progress}%${eta}\n`);
     }
@@ -29,7 +30,7 @@ export async function waitForEncoding(api: any, encodingId: string): Promise<any
         if (status === 'FINISHED') {
           spinner.succeed(`Encoding ${encodingId} ${chalk.green('FINISHED')}`);
         } else {
-          spinner.fail(`Encoding ${encodingId} ${statusColor(status)}`);
+          spinner.fail(`Encoding ${encodingId} ${colorizeStatus(status)}`);
         }
       }
 
@@ -52,20 +53,6 @@ function progressBar(percent: number): string {
   const filled = Math.round(percent / 5);
   const empty = 20 - filled;
   return chalk.cyan('█'.repeat(filled)) + chalk.dim('░'.repeat(empty));
-}
-
-function statusColor(status: string): string {
-  switch (status) {
-    case 'FINISHED':
-      return chalk.green(status);
-    case 'ERROR':
-    case 'TRANSFER_ERROR':
-      return chalk.red(status);
-    case 'RUNNING':
-      return chalk.blue(status);
-    default:
-      return chalk.yellow(status);
-  }
 }
 
 function sleep(ms: number): Promise<void> {

@@ -41,7 +41,7 @@ function captureStdout(): {output: () => string; restore: () => void} {
 describe('encoding job list', () => {
   it('outputs JSON with --json', async () => {
     const cap = captureStdout();
-    const {default: Cmd} = await import('../../src/commands/encoding/job/list.js');
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/list.js');
     await Cmd.run(['--json']);
     cap.restore();
     const data = JSON.parse(cap.output());
@@ -52,7 +52,7 @@ describe('encoding job list', () => {
 
   it('outputs table data in non-TTY', async () => {
     const cap = captureStdout();
-    const {default: Cmd} = await import('../../src/commands/encoding/job/list.js');
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/list.js');
     await Cmd.run([]);
     cap.restore();
     const out = cap.output();
@@ -63,7 +63,7 @@ describe('encoding job list', () => {
 
   it('supports --jq filtering', async () => {
     const cap = captureStdout();
-    const {default: Cmd} = await import('../../src/commands/encoding/job/list.js');
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/list.js');
     await Cmd.run(['--jq', '.[].id']);
     cap.restore();
     expect(cap.output().trim()).toBe('"enc-1"\n"enc-2"\n"enc-3"');
@@ -71,7 +71,7 @@ describe('encoding job list', () => {
 
   it('supports --jq select', async () => {
     const cap = captureStdout();
-    const {default: Cmd} = await import('../../src/commands/encoding/job/list.js');
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/list.js');
     await Cmd.run(['--jq', '[.[] | select(.status == "RUNNING")]']);
     cap.restore();
     const data = JSON.parse(cap.output());
@@ -83,7 +83,7 @@ describe('encoding job list', () => {
 describe('encoding job get', () => {
   it('outputs JSON', async () => {
     const cap = captureStdout();
-    const {default: Cmd} = await import('../../src/commands/encoding/job/get.js');
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/get.js');
     await Cmd.run(['enc-1', '--json']);
     cap.restore();
     const data = JSON.parse(cap.output());
@@ -95,7 +95,7 @@ describe('encoding job get', () => {
 describe('encoding job status', () => {
   it('outputs JSON', async () => {
     const cap = captureStdout();
-    const {default: Cmd} = await import('../../src/commands/encoding/job/status.js');
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/status.js');
     await Cmd.run(['enc-1', '--json']);
     cap.restore();
     const data = JSON.parse(cap.output());
@@ -105,7 +105,7 @@ describe('encoding job status', () => {
 
   it('outputs human-readable', async () => {
     const cap = captureStdout();
-    const {default: Cmd} = await import('../../src/commands/encoding/job/status.js');
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/status.js');
     await Cmd.run(['enc-1']);
     cap.restore();
     const out = cap.output();

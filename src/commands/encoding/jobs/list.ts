@@ -7,6 +7,7 @@ export default class EncodingJobList extends BaseCommand {
   static override flags = {
     ...BaseCommand.baseFlags,
     limit: Flags.integer({description: 'Max results', default: 25}),
+    offset: Flags.integer({description: 'Offset for pagination', default: 0}),
     status: Flags.string({description: 'Filter by status (CREATED, QUEUED, RUNNING, FINISHED, ERROR)'}),
   };
 
@@ -14,6 +15,7 @@ export default class EncodingJobList extends BaseCommand {
     const {flags} = await this.parse(EncodingJobList);
     const result = await (await this.getApi()).encoding.encodings.list((q: any) => {
       q.limit(flags.limit);
+      q.offset(flags.offset);
       if (flags.status) q.status(flags.status);
       return q;
     });

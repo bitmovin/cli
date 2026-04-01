@@ -1,11 +1,29 @@
-import {Command} from '@oclif/core';
+import {BaseCommand} from '../../lib/base-command.js';
 import {loadConfig, getConfigPath} from '../../lib/config.js';
 
-export default class ConfigShow extends Command {
+export default class ConfigShow extends BaseCommand {
   static override description = 'Show current configuration';
+
+  static override flags = {
+    ...BaseCommand.baseFlags,
+  };
 
   async run(): Promise<void> {
     const config = loadConfig();
+
+    if (await this.isJsonMode()) {
+      const masked = config.apiKey
+        ? config.apiKey.slice(0, 8) + '...' + config.apiKey.slice(-4)
+        : undefined;
+      await this.outputData({
+        configFile: getConfigPath(),
+        apiKey: masked ?? '(not set)',
+        tenantOrgId: config.tenantOrgId ?? '(not set)',
+        defaultRegion: config.defaultRegion ?? '(not set)',
+      });
+      return;
+    }
+
     this.log(`Config file: ${getConfigPath()}\n`);
 
     if (config.apiKey) {

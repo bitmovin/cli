@@ -1,5 +1,6 @@
-import {Args, Command} from '@oclif/core';
-import {loadConfig, saveConfig, getConfigPath} from '../../lib/config.js';
+import {Args} from '@oclif/core';
+import {BaseCommand} from '../../lib/base-command.js';
+import {loadConfig, saveConfig} from '../../lib/config.js';
 
 const VALID_KEYS: Record<string, string> = {
   'api-key': 'apiKey',
@@ -7,7 +8,7 @@ const VALID_KEYS: Record<string, string> = {
   'default-region': 'defaultRegion',
 };
 
-export default class ConfigSet extends Command {
+export default class ConfigSet extends BaseCommand {
   static override description = 'Set a configuration value';
 
   static override args = {
@@ -17,6 +18,10 @@ export default class ConfigSet extends Command {
       options: Object.keys(VALID_KEYS),
     }),
     value: Args.string({description: 'Value to set', required: true}),
+  };
+
+  static override flags = {
+    ...BaseCommand.baseFlags,
   };
 
   static override examples = [

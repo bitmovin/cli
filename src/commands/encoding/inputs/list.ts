@@ -8,16 +8,18 @@ export default class EncodingInputList extends BaseCommand {
     ...BaseCommand.baseFlags,
     type: Flags.string({description: 'Filter by type (s3, gcs, http, https, azure)'}),
     limit: Flags.integer({description: 'Max results', default: 25}),
+    offset: Flags.integer({description: 'Offset for pagination', default: 0}),
   };
 
   async run(): Promise<void> {
     const {flags} = await this.parse(EncodingInputList);
     const listFn = (q: any) => {
       q.limit(flags.limit);
+      q.offset(flags.offset);
       return q;
     };
 
-    let items: Record<string, unknown>[];
+    let items: unknown[];
     const type = flags.type?.toLowerCase();
 
     if (type === 's3') {

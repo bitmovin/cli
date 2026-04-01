@@ -17,7 +17,8 @@ export default class EncodingTemplateCreate extends BaseCommand {
   async run(): Promise<void> {
     const {args, flags} = await this.parse(EncodingTemplateCreate);
     const content = readFileSync(args.file, 'utf-8');
-    const result = await (await this.getApi()).encoding.templates.create(content as never);
+    const templatePayload: Record<string, unknown> = {name: flags.name, template: content};
+    const result = await (await this.getApi()).encoding.templates.create(templatePayload as never);
     this.log(`Template created: ${(result as {id?: string}).id}`);
     await this.outputData(result);
   }

@@ -8,12 +8,14 @@ export default class EncodingTemplateList extends BaseCommand {
     ...BaseCommand.baseFlags,
     type: Flags.string({description: 'Filter by type', options: ['VOD', 'LIVE']}),
     limit: Flags.integer({description: 'Max results', default: 25}),
+    offset: Flags.integer({description: 'Offset for pagination', default: 0}),
   };
 
   async run(): Promise<void> {
     const {flags} = await this.parse(EncodingTemplateList);
     const result = await (await this.getApi()).encoding.templates.list((q: any) => {
       q.limit(flags.limit);
+      q.offset(flags.offset);
       if (flags.type) q.type(flags.type);
       return q;
     });

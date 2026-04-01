@@ -75,7 +75,7 @@ function colorizeCell(column: string, value: unknown): string {
   return str;
 }
 
-function colorizeStatus(status: string): string {
+export function colorizeStatus(status: string): string {
   switch (status?.toUpperCase()) {
     case 'FINISHED':
       return chalk.green(status);
