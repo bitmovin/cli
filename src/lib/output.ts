@@ -1,0 +1,100 @@
+import Table from 'cli-table3';
+import chalk from 'chalk';
+
+const isTTY = Boolean(process.stdout.isTTY);
+
+export function formatJson(data: unknown, fields?: string[]): string {
+  if (fields && fields.length > 0) {
+    if (Array.isArray(data)) {
+      return JSON.stringify(data.map((item) => pickFields(item, fields)), null, 2);
+    }
+
+    return JSON.stringify(pickFields(data as Record<string, unknown>, fields), null, 2);
+  }
+
+  return JSON.stringify(data, null, 2);
+}
+
+function pickFields(obj: Record<string, unknown>, fields: string[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const field of fields) {
+    if (field in obj) result[field] = obj[field];
+  }
+
+  return result;
+}
+
+export function formatTable(items: Record<string, unknown>[], columns: string[]): string {
+  if (items.length === 0) return isTTY ? chalk.dim('No results.') : 'No results.';
+
+  const summarized = items.map((item) => {
+    const result: Record<string, unknown> = {};
+    for (const col of columns) result[col] = item[col];
+    return result;
+  });
+
+  if (!isTTY) {
+    // Tab-separated for piping
+    const header = columns.join('\t');
+    const rows = summarized.map((item) => columns.map((c) => formatCellPlain(item[c])).join('\t'));
+    return [header, ...rows].join('\n');
+  }
+
+  const table = new Table({
+    head: columns.map((k) => chalk.bold(k)),
+    style: {head: [], border: []},
+  });
+
+  for (const item of summarized) {
+    table.push(columns.map((k) => formatCell(item[k])));
+  }
+
+  return table.toString();
+}
+
+export function formatKeyValue(obj: Record<string, unknown>): string {
+  const entries = Object.entries(obj).filter(([, v]) => v !== undefined && v !== null);
+
+  if (!isTTY) {
+    return entries.map(([k, v]) => `${k}\t${formatCellPlain(v)}`).join('\n');
+  }
+
+  const table = new Table({style: {head: [], border: []}});
+  for (const [key, value] of entries) {
+    table.push({[chalk.bold(key)]: formatCell(value)});
+  }
+
+  return table.toString();
+}
+
+function formatCell(value: unknown): string {
+  if (value === null || value === undefined) return isTTY ? chalk.dim('-') : '-';
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function formatCellPlain(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+export function printStatus(status: string): string {
+  if (!isTTY) return status;
+  switch (status?.toUpperCase()) {
+    case 'FINISHED':
+      return chalk.green(status);
+    case 'ERROR':
+    case 'TRANSFER_ERROR':
+      return chalk.red(status);
+    case 'RUNNING':
+      return chalk.blue(status);
+    case 'QUEUED':
+    case 'CREATED':
+      return chalk.yellow(status);
+    default:
+      return status;
+  }
+}

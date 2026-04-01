@@ -1,0 +1,35 @@
+import {Flags} from '@oclif/core';
+import {BaseCommand} from '../../../lib/base-command.js';
+
+export default class EncodingOutputList extends BaseCommand {
+  static override description = 'List encoding outputs';
+
+  static override flags = {
+    ...BaseCommand.baseFlags,
+    type: Flags.string({description: 'Filter by type (s3, gcs, azure)'}),
+    limit: Flags.integer({description: 'Max results', default: 25}),
+  };
+
+  async run(): Promise<void> {
+    const {flags} = await this.parse(EncodingOutputList);
+    const listFn = (q: any) => {
+      q.limit(flags.limit);
+      return q;
+    };
+
+    let items: Record<string, unknown>[];
+    const type = flags.type?.toLowerCase();
+
+    if (type === 's3') {
+      items = (await (await this.getApi()).encoding.outputs.s3.list(listFn)).items ?? [];
+    } else if (type === 'gcs') {
+      items = (await (await this.getApi()).encoding.outputs.gcs.list(listFn)).items ?? [];
+    } else if (type === 'azure') {
+      items = (await (await this.getApi()).encoding.outputs.azure.list(listFn)).items ?? [];
+    } else {
+      items = (await (await this.getApi()).encoding.outputs.list(listFn)).items ?? [];
+    }
+
+    await this.outputList(items as Record<string, unknown>[], ['id', 'name', 'type', 'createdAt']);
+  }
+}

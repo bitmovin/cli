@@ -1,0 +1,20 @@
+import {Args} from '@oclif/core';
+import {BaseCommand} from '../../../lib/base-command.js';
+
+export default class AnalyticsLicenseGet extends BaseCommand {
+  static override description = 'Get analytics license details';
+
+  static override args = {
+    id: Args.string({description: 'License ID', required: true}),
+  };
+
+  static override flags = {
+    ...BaseCommand.baseFlags,
+  };
+
+  async run(): Promise<void> {
+    const {args} = await this.parse(AnalyticsLicenseGet);
+    const result = await (await this.getApi()).analytics.licenses.get(args.id);
+    await this.outputData(result);
+  }
+}
