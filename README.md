@@ -1,12 +1,14 @@
 # Bitmovin CLI
 
+> **Internal Beta** — This CLI is in early development and available for internal use only. Install directly from GitHub:
+>
+> ```bash
+> npm install -g github:bitmovin/cli
+> ```
+>
+> Requires GitHub access to the `bitmovin/cli` repo. Run `gh auth setup-git` if you haven't already.
+
 The official command-line interface for [Bitmovin](https://bitmovin.com). Manage encodings, player licenses, analytics, and more — from your terminal.
-
-## Install
-
-```bash
-npm install -g @bitmovin/cli
-```
 
 Requires Node.js 18+.
 
