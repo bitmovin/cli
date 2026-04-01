@@ -31,14 +31,16 @@ export default class EncodingJobStatus extends BaseCommand {
       return;
     }
 
-    this.log(`Status:   ${printStatus(String(task.status))}`);
-    this.log(`Progress: ${task.progress ?? 0}%`);
-    if (task.eta) this.log(`ETA:      ${Math.round(task.eta / 60)}m${task.eta % 60}s`);
+    // Human-readable output to stdout
+    const out = process.stdout;
+    out.write(`Status:   ${printStatus(String(task.status))}\n`);
+    out.write(`Progress: ${task.progress ?? 0}%\n`);
+    if (task.eta) out.write(`ETA:      ${Math.round(task.eta / 60)}m${task.eta % 60}s\n`);
 
     if (task.messages?.length) {
-      this.log('\nMessages:');
+      out.write('\nMessages:\n');
       for (const msg of task.messages.slice(-10)) {
-        this.log(`  [${msg.type}] ${msg.text}`);
+        out.write(`  [${msg.type}] ${msg.text}\n`);
       }
     }
   }

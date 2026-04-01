@@ -46,17 +46,18 @@ export default class ConfigListOrganizations extends BaseCommand {
       return;
     }
 
-    this.log('');
+    const lines: string[] = [''];
     for (const org of allOrgs) {
       const marker = org.active ? chalk.green(' (active)') : '';
       if (org.parent) {
-        this.log(`    └─ ${chalk.dim(org.id as string)}  ${org.name ?? ''}${marker}`);
+        lines.push(`    └─ ${chalk.dim(org.id as string)}  ${org.name ?? ''}${marker}`);
       } else {
-        this.log(`  ${chalk.bold(org.id as string)}  ${org.name ?? ''}${marker}`);
+        lines.push(`  ${chalk.bold(org.id as string)}  ${org.name ?? ''}${marker}`);
       }
     }
 
-    this.log('');
-    this.log(chalk.dim('Set active organization: bitmovin config set organization <id>'));
+    lines.push('');
+    lines.push(chalk.dim('Set active organization: bitmovin config set organization <id>'));
+    process.stdout.write(lines.join('\n') + '\n');
   }
 }

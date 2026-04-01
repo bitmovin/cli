@@ -1,7 +1,9 @@
 import Table from 'cli-table3';
 import chalk from 'chalk';
 
-const isTTY = Boolean(process.stdout.isTTY);
+export function isTTY(): boolean {
+  return Boolean(process.stdout.isTTY);
+}
 
 export function formatJson(data: unknown, fields?: string[]): string {
   if (fields && fields.length > 0) {
@@ -24,8 +26,8 @@ function pickFields(obj: Record<string, unknown>, fields: string[]): Record<stri
   return result;
 }
 
-export function formatTable(items: Record<string, unknown>[], columns: string[]): string {
-  if (items.length === 0) return isTTY ? chalk.dim('No results.') : 'No results.';
+export function formatTable(items: Record<string, unknown>[], columns: string[], useTable: boolean): string {
+  if (items.length === 0) return useTable ? chalk.dim('No results.') : 'No results.';
 
   const summarized = items.map((item) => {
     const result: Record<string, unknown> = {};
@@ -33,8 +35,7 @@ export function formatTable(items: Record<string, unknown>[], columns: string[])
     return result;
   });
 
-  if (!isTTY) {
-    // Tab-separated for piping
+  if (!useTable) {
     const header = columns.join('\t');
     const rows = summarized.map((item) => columns.map((c) => formatCellPlain(item[c])).join('\t'));
     return [header, ...rows].join('\n');
@@ -46,43 +47,35 @@ export function formatTable(items: Record<string, unknown>[], columns: string[])
   });
 
   for (const item of summarized) {
-    table.push(columns.map((k) => formatCell(item[k])));
+    table.push(columns.map((k) => colorizeCell(k, item[k])));
   }
 
   return table.toString();
 }
 
-export function formatKeyValue(obj: Record<string, unknown>): string {
+export function formatKeyValue(obj: Record<string, unknown>, useTable: boolean): string {
   const entries = Object.entries(obj).filter(([, v]) => v !== undefined && v !== null);
 
-  if (!isTTY) {
+  if (!useTable) {
     return entries.map(([k, v]) => `${k}\t${formatCellPlain(v)}`).join('\n');
   }
 
   const table = new Table({style: {head: [], border: []}});
   for (const [key, value] of entries) {
-    table.push({[chalk.bold(key)]: formatCell(value)});
+    table.push({[chalk.bold(key)]: colorizeCell(key, value)});
   }
 
   return table.toString();
 }
 
-function formatCell(value: unknown): string {
-  if (value === null || value === undefined) return isTTY ? chalk.dim('-') : '-';
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+// Colorize known values during table rendering
+function colorizeCell(column: string, value: unknown): string {
+  const str = formatCellRaw(value);
+  if (column === 'status') return colorizeStatus(str);
+  return str;
 }
 
-function formatCellPlain(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-}
-
-export function printStatus(status: string): string {
-  if (!isTTY) return status;
+function colorizeStatus(status: string): string {
   switch (status?.toUpperCase()) {
     case 'FINISHED':
       return chalk.green(status);
@@ -97,4 +90,23 @@ export function printStatus(status: string): string {
     default:
       return status;
   }
+}
+
+function formatCellRaw(value: unknown): string {
+  if (value === null || value === undefined) return chalk.dim('-');
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function formatCellPlain(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+export function printStatus(status: string): string {
+  if (!isTTY()) return status;
+  return colorizeStatus(status);
 }

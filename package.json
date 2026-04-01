@@ -36,6 +36,8 @@
   "scripts": {
     "build": "tsc -b",
     "dev": "tsc -b --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint src",
     "postpack": "rm -f oclif.manifest.json",
     "prepack": "npm run build && oclif manifest"
@@ -51,11 +53,13 @@
     "ora": "^8.1.1"
   },
   "devDependencies": {
+    "@oclif/test": "^4.1.17",
     "@types/cli-progress": "^3.11.6",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22",
     "oclif": "^4",
-    "typescript": "^5.7"
+    "typescript": "^5.7",
+    "vitest": "^4.1.2"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -69,26 +73,66 @@
     },
     "topicSeparator": " ",
     "topics": {
-      "config": { "description": "Configure API key and defaults" },
-      "config:list": { "description": "List configuration resources" },
-      "encoding": { "description": "Encoding operations" },
-      "encoding:template": { "description": "Encoding templates (YAML-based workflows)" },
-      "encoding:job": { "description": "Encoding job management" },
-      "encoding:input": { "description": "Input source management" },
-      "encoding:input:create": { "description": "Create input sources" },
-      "encoding:output": { "description": "Output destination management" },
-      "encoding:output:create": { "description": "Create output destinations" },
-      "encoding:codec": { "description": "Codec configuration management" },
-      "encoding:codec:create": { "description": "Create codec configurations" },
-      "encoding:manifest": { "description": "Manifest management" },
-      "player": { "description": "Player operations" },
-      "player:licenses": { "description": "Player license management" },
-      "player:domains": { "description": "Player domain allowlist management" },
-      "player:analytics": { "description": "Player analytics linking" },
-      "analytics": { "description": "Analytics operations" },
-      "analytics:licenses": { "description": "Analytics license management" },
-      "analytics:domains": { "description": "Analytics domain allowlist management" },
-      "account": { "description": "Account information" }
+      "config": {
+        "description": "Configure API key and defaults"
+      },
+      "config:list": {
+        "description": "List configuration resources"
+      },
+      "encoding": {
+        "description": "Encoding operations"
+      },
+      "encoding:template": {
+        "description": "Encoding templates (YAML-based workflows)"
+      },
+      "encoding:job": {
+        "description": "Encoding job management"
+      },
+      "encoding:input": {
+        "description": "Input source management"
+      },
+      "encoding:input:create": {
+        "description": "Create input sources"
+      },
+      "encoding:output": {
+        "description": "Output destination management"
+      },
+      "encoding:output:create": {
+        "description": "Create output destinations"
+      },
+      "encoding:codec": {
+        "description": "Codec configuration management"
+      },
+      "encoding:codec:create": {
+        "description": "Create codec configurations"
+      },
+      "encoding:manifest": {
+        "description": "Manifest management"
+      },
+      "player": {
+        "description": "Player operations"
+      },
+      "player:licenses": {
+        "description": "Player license management"
+      },
+      "player:domains": {
+        "description": "Player domain allowlist management"
+      },
+      "player:analytics": {
+        "description": "Player analytics linking"
+      },
+      "analytics": {
+        "description": "Analytics operations"
+      },
+      "analytics:licenses": {
+        "description": "Analytics license management"
+      },
+      "analytics:domains": {
+        "description": "Analytics domain allowlist management"
+      },
+      "account": {
+        "description": "Account information"
+      }
     }
   }
 }
