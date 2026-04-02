@@ -1,1 +1,0 @@
-{"version":3,"file":"s3.d.ts","sourceRoot":"","sources":["../../../../../src/commands/encoding/inputs/create/s3.ts"],"names":[],"mappings":"AAEA,OAAO,EAAC,WAAW,EAAC,MAAM,iCAAiC,CAAC;AAE5D,MAAM,CAAC,OAAO,OAAO,qBAAsB,SAAQ,WAAW;IAC5D,OAAgB,WAAW,SAAwB;IAEnD,OAAgB,KAAK;;;;;;;;;;;;MAOnB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CAc3B"}

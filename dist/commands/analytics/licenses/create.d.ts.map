@@ -1,1 +1,0 @@
-{"version":3,"file":"create.d.ts","sourceRoot":"","sources":["../../../../src/commands/analytics/licenses/create.ts"],"names":[],"mappings":"AAEA,OAAO,EAAC,WAAW,EAAC,MAAM,8BAA8B,CAAC;AAEzD,MAAM,CAAC,OAAO,OAAO,sBAAuB,SAAQ,WAAW;IAC7D,OAAgB,WAAW,SAAiC;IAE5D,OAAgB,KAAK;;;;;;;;;MAInB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CAW3B"}

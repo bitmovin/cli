@@ -1,1 +1,0 @@
-{"version":3,"file":"remove.d.ts","sourceRoot":"","sources":["../../../../src/commands/player/domains/remove.ts"],"names":[],"mappings":"AACA,OAAO,EAAC,WAAW,EAAC,MAAM,8BAA8B,CAAC;AAGzD,MAAM,CAAC,OAAO,OAAO,kBAAmB,SAAQ,WAAW;IACzD,OAAgB,WAAW,SAAqD;IAEhF,OAAgB,IAAI;;;MAGlB;IAEF,OAAgB,KAAK;;;;;;;MAEnB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CAO3B"}

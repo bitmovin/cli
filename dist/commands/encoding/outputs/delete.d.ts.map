@@ -1,1 +1,0 @@
-{"version":3,"file":"delete.d.ts","sourceRoot":"","sources":["../../../../src/commands/encoding/outputs/delete.ts"],"names":[],"mappings":"AACA,OAAO,EAAC,WAAW,EAAC,MAAM,8BAA8B,CAAC;AAezD,MAAM,CAAC,OAAO,OAAO,oBAAqB,SAAQ,WAAW;IAC3D,OAAgB,WAAW,SAAsB;IAEjD,OAAgB,IAAI;;MAElB;IAEF,OAAgB,KAAK;;;;;;;;MAGnB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CAqB3B"}

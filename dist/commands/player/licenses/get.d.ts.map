@@ -1,1 +1,0 @@
-{"version":3,"file":"get.d.ts","sourceRoot":"","sources":["../../../../src/commands/player/licenses/get.ts"],"names":[],"mappings":"AACA,OAAO,EAAC,WAAW,EAAC,MAAM,8BAA8B,CAAC;AAEzD,MAAM,CAAC,OAAO,OAAO,gBAAiB,SAAQ,WAAW;IACvD,OAAgB,WAAW,SAAgC;IAE3D,OAAgB,IAAI;;MAElB;IAEF,OAAgB,KAAK;;;;;;;MAEnB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CAK3B"}

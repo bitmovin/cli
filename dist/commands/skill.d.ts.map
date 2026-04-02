@@ -1,1 +1,0 @@
-{"version":3,"file":"skill.d.ts","sourceRoot":"","sources":["../../src/commands/skill.ts"],"names":[],"mappings":"AAAA,OAAO,EAAC,OAAO,EAAC,MAAM,aAAa,CAAC;AAqJpC,MAAM,CAAC,OAAO,OAAO,KAAM,SAAQ,OAAO;IACxC,OAAgB,WAAW,SAA0D;IACrF,OAAgB,MAAM,UAAQ;IAExB,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CAG3B"}

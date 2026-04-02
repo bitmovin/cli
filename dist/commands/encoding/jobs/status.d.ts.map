@@ -1,1 +1,0 @@
-{"version":3,"file":"status.d.ts","sourceRoot":"","sources":["../../../../src/commands/encoding/jobs/status.ts"],"names":[],"mappings":"AACA,OAAO,EAAC,WAAW,EAAC,MAAM,8BAA8B,CAAC;AAIzD,MAAM,CAAC,OAAO,OAAO,iBAAkB,SAAQ,WAAW;IACxD,OAAgB,WAAW,SAAyB;IAEpD,OAAgB,IAAI;;MAElB;IAEF,OAAgB,KAAK;;;;;;;;MAGnB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CA6B3B"}

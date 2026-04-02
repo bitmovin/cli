@@ -1,1 +1,0 @@
-{"version":3,"file":"activate.d.ts","sourceRoot":"","sources":["../../../../src/commands/player/analytics/activate.ts"],"names":[],"mappings":"AACA,OAAO,EAAC,WAAW,EAAC,MAAM,8BAA8B,CAAC;AAEzD,MAAM,CAAC,OAAO,OAAO,uBAAwB,SAAQ,WAAW;IAC9D,OAAgB,WAAW,SAA4C;IAEvE,OAAgB,IAAI;;MAElB;IAEF,OAAgB,KAAK;;;;;;;;MAGnB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CAK3B"}

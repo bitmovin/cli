@@ -1,1 +1,0 @@
-{"version":3,"file":"h265.d.ts","sourceRoot":"","sources":["../../../../../src/commands/encoding/codecs/create/h265.ts"],"names":[],"mappings":"AAEA,OAAO,EAAC,WAAW,EAAC,MAAM,iCAAiC,CAAC;AAE5D,MAAM,CAAC,OAAO,OAAO,uBAAwB,SAAQ,WAAW;IAC9D,OAAgB,WAAW,SAA8C;IAEzE,OAAgB,KAAK;;;;;;;;;;;;;MAQnB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CAe3B"}
