@@ -1,0 +1,1 @@
+{"version":3,"file":"organizations.d.ts","sourceRoot":"","sources":["../../../../src/commands/config/list/organizations.ts"],"names":[],"mappings":"AACA,OAAO,EAAC,WAAW,EAAC,MAAM,8BAA8B,CAAC;AAGzD,MAAM,CAAC,OAAO,OAAO,uBAAwB,SAAQ,WAAW;IAC9D,OAAgB,WAAW,SAA4D;IAEvF,OAAgB,KAAK;;;;;;;MAEnB;IAEF,OAAgB,QAAQ,WAItB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CA6C3B"}

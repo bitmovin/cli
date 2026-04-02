@@ -1,0 +1,1 @@
+{"version":3,"file":"add.d.ts","sourceRoot":"","sources":["../../../../src/commands/player/domains/add.ts"],"names":[],"mappings":"AAEA,OAAO,EAAC,WAAW,EAAC,MAAM,8BAA8B,CAAC;AAGzD,MAAM,CAAC,OAAO,OAAO,eAAgB,SAAQ,WAAW;IACtD,OAAgB,WAAW,SAAgD;IAE3E,OAAgB,IAAI;;MAElB;IAEF,OAAgB,KAAK;;;;;;;;MAGnB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CAS3B"}

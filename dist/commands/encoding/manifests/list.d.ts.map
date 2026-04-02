@@ -1,0 +1,1 @@
+{"version":3,"file":"list.d.ts","sourceRoot":"","sources":["../../../../src/commands/encoding/manifests/list.ts"],"names":[],"mappings":"AACA,OAAO,EAAC,WAAW,EAAC,MAAM,8BAA8B,CAAC;AAEzD,MAAM,CAAC,OAAO,OAAO,oBAAqB,SAAQ,WAAW;IAC3D,OAAgB,WAAW,SAAoB;IAE/C,OAAgB,KAAK;;;;;;;;;;MAKnB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CAqB3B"}

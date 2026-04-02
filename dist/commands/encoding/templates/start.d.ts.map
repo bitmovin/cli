@@ -1,0 +1,1 @@
+{"version":3,"file":"start.d.ts","sourceRoot":"","sources":["../../../../src/commands/encoding/templates/start.ts"],"names":[],"mappings":"AAEA,OAAO,EAAC,WAAW,EAAC,MAAM,8BAA8B,CAAC;AAGzD,MAAM,CAAC,OAAO,OAAO,qBAAsB,SAAQ,WAAW;IAC5D,OAAgB,WAAW,SAAyE;IAEpG,OAAgB,IAAI;;MAElB;IAEF,OAAgB,KAAK;;;;;;;;;MAInB;IAEF,OAAgB,QAAQ,WAGtB;IAEI,GAAG,IAAI,OAAO,CAAC,IAAI,CAAC;CAwB3B"}
