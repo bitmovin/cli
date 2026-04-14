@@ -1,4 +1,5 @@
 import {Flags} from '@oclif/core';
+import {EncodingTemplateType} from '@bitmovin/api-sdk';
 import {BaseCommand} from '../../../lib/base-command.js';
 
 export default class EncodingTemplateList extends BaseCommand {
@@ -13,11 +14,10 @@ export default class EncodingTemplateList extends BaseCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(EncodingTemplateList);
-    const result = await (await this.getApi()).encoding.templates.list((q: any) => {
-      q.limit(flags.limit);
-      q.offset(flags.offset);
-      if (flags.type) q.type(flags.type);
-      return q;
+    const result = await (await this.getApi()).encoding.templates.list({
+      limit: flags.limit,
+      offset: flags.offset,
+      ...(flags.type && {type: flags.type as EncodingTemplateType}),
     });
 
     const items = (result.items ?? []) as Record<string, unknown>[];

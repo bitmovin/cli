@@ -1,7 +1,8 @@
 import {Args, Flags} from '@oclif/core';
 import {BaseCommand} from '../../../lib/base-command.js';
+import type {ApiClient} from '../../../lib/client.js';
 
-const OUTPUT_TYPE_MAP: Record<string, (api: any, id: string) => Promise<unknown>> = {
+const OUTPUT_TYPE_MAP: Record<string, (api: ApiClient, id: string) => Promise<unknown>> = {
   S3: (api, id) => api.encoding.outputs.s3.delete(id),
   GCS: (api, id) => api.encoding.outputs.gcs.delete(id),
   GCS_SERVICE_ACCOUNT: (api, id) => api.encoding.outputs.gcsServiceAccount.delete(id),

@@ -1,5 +1,5 @@
 import {Flags} from '@oclif/core';
-import {S3Input} from '@bitmovin/api-sdk';
+import {S3Input, AwsCloudRegion} from '@bitmovin/api-sdk';
 import {BaseCommand} from '../../../../lib/base-command.js';
 
 export default class EncodingInputCreateS3 extends BaseCommand {
@@ -21,7 +21,7 @@ export default class EncodingInputCreateS3 extends BaseCommand {
       bucketName: flags.bucket,
       accessKey: flags['access-key'],
       secretKey: flags['secret-key'],
-      ...(flags.region && {cloudRegion: flags.region as any}),
+      ...(flags.region && {cloudRegion: flags.region as AwsCloudRegion}),
     });
 
     const result = await (await this.getApi()).encoding.inputs.s3.create(input);

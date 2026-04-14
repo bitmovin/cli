@@ -1,8 +1,11 @@
 {
   "name": "@bitmovin/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Bitmovin CLI — manage encodings, player licenses, and analytics from the terminal",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "author": "Bitmovin, Inc.",
   "homepage": "https://github.com/bitmovin/cli#readme",
   "repository": {
@@ -55,13 +58,16 @@
     "ora": "^8.1.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@oclif/plugin-plugins": "^5.4.59",
     "@oclif/test": "^4.1.17",
     "@types/cli-progress": "^3.11.6",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22",
+    "eslint": "^10.2.0",
     "oclif": "^4",
     "typescript": "^5.7",
+    "typescript-eslint": "^8.58.2",
     "vitest": "^4.1.2"
   },
   "engines": {

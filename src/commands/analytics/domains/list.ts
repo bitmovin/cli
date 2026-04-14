@@ -20,7 +20,7 @@ export default class AnalyticsDomainList extends BaseCommand {
     const api = await this.getApi();
     const licenseId = await resolveAnalyticsLicense(api, args.license);
     const result = await api.analytics.licenses.domains.get(licenseId);
-    let items = ((result as any).domains ?? []).map((d: any) => ({
+    let items = (result.domains ?? []).map((d) => ({
       id: d.id,
       url: d.url,
     }));

@@ -13,23 +13,19 @@ export default class EncodingOutputList extends BaseCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(EncodingOutputList);
-    const listFn = (q: any) => {
-      q.limit(flags.limit);
-      q.offset(flags.offset);
-      return q;
-    };
+    const listParams = {limit: flags.limit, offset: flags.offset};
 
     let items: unknown[];
     const type = flags.type?.toLowerCase();
 
     if (type === 's3') {
-      items = (await (await this.getApi()).encoding.outputs.s3.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.outputs.s3.list(listParams)).items ?? [];
     } else if (type === 'gcs') {
-      items = (await (await this.getApi()).encoding.outputs.gcs.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.outputs.gcs.list(listParams)).items ?? [];
     } else if (type === 'azure') {
-      items = (await (await this.getApi()).encoding.outputs.azure.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.outputs.azure.list(listParams)).items ?? [];
     } else {
-      items = (await (await this.getApi()).encoding.outputs.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.outputs.list(listParams)).items ?? [];
     }
 
     await this.outputList(items as Record<string, unknown>[], ['id', 'name', 'type', 'createdAt']);

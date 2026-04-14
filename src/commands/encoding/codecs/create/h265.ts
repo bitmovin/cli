@@ -22,7 +22,7 @@ export default class EncodingCodecCreateH265 extends BaseCommand {
       bitrate: flags.bitrate,
       ...(flags.height && {height: flags.height}),
       ...(flags.width && {width: flags.width}),
-      ...(flags.profile && {profile: flags.profile as unknown as ProfileH265}),
+      ...(flags.profile && {profile: flags.profile as ProfileH265}),
       ...(flags.rate && {rate: flags.rate}),
     });
 

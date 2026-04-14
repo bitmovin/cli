@@ -13,14 +13,13 @@ export default class EncodingJobList extends BaseCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(EncodingJobList);
-    const result = await (await this.getApi()).encoding.encodings.list((q: any) => {
-      q.limit(flags.limit);
-      q.offset(flags.offset);
-      if (flags.status) q.status(flags.status);
-      return q;
+    const result = await (await this.getApi()).encoding.encodings.list({
+      limit: flags.limit,
+      offset: flags.offset,
+      ...(flags.status && {status: flags.status}),
     });
 
-    const items = (result.items ?? []).map((e: any) => ({
+    const items = (result.items ?? []).map((e) => ({
       id: e.id,
       name: e.name,
       cloudRegion: e.cloudRegion,

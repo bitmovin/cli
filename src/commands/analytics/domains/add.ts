@@ -21,7 +21,7 @@ export default class AnalyticsDomainAdd extends BaseCommand {
     const licenseId = await resolveAnalyticsLicense(api, args.license);
     const domain = new AnalyticsLicenseDomain({url: flags.url});
     const result = await api.analytics.licenses.domains.create(licenseId, domain);
-    this.log(`Domain added: ${(result as any).id}`);
+    this.log(`Domain added: ${result.id}`);
     await this.outputData(result);
   }
 }

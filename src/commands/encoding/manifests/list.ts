@@ -13,21 +13,17 @@ export default class EncodingManifestList extends BaseCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(EncodingManifestList);
-    const listFn = (q: any) => {
-      q.limit(flags.limit);
-      q.offset(flags.offset);
-      return q;
-    };
+    const listParams = {limit: flags.limit, offset: flags.offset};
 
     let items: unknown[];
     if (flags.type === 'dash') {
-      items = (await (await this.getApi()).encoding.manifests.dash.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.manifests.dash.list(listParams)).items ?? [];
     } else if (flags.type === 'hls') {
-      items = (await (await this.getApi()).encoding.manifests.hls.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.manifests.hls.list(listParams)).items ?? [];
     } else if (flags.type === 'smooth') {
-      items = (await (await this.getApi()).encoding.manifests.smooth.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.manifests.smooth.list(listParams)).items ?? [];
     } else {
-      items = (await (await this.getApi()).encoding.manifests.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.manifests.list(listParams)).items ?? [];
     }
 
     await this.outputList(items as Record<string, unknown>[], ['id', 'name', 'type', 'status', 'createdAt']);

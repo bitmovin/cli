@@ -12,13 +12,12 @@ export default class AnalyticsLicenseList extends BaseCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(AnalyticsLicenseList);
-    const result = await (await this.getApi()).analytics.licenses.list((q: any) => {
-      q.limit(flags.limit);
-      q.offset(flags.offset);
-      return q;
+    const result = await (await this.getApi()).analytics.licenses.list({
+      limit: flags.limit,
+      offset: flags.offset,
     });
 
-    const items = (result.items ?? []).map((l: any) => ({
+    const items = (result.items ?? []).map((l) => ({
       id: l.id,
       name: l.name,
       licenseKey: l.licenseKey,

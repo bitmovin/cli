@@ -1,5 +1,5 @@
 import {Flags} from '@oclif/core';
-import {H264VideoConfiguration, ProfileH264, H264MotionEstimationMethod} from '@bitmovin/api-sdk';
+import {H264VideoConfiguration, ProfileH264} from '@bitmovin/api-sdk';
 import {BaseCommand} from '../../../../lib/base-command.js';
 
 export default class EncodingCodecCreateH264 extends BaseCommand {
@@ -22,7 +22,7 @@ export default class EncodingCodecCreateH264 extends BaseCommand {
       bitrate: flags.bitrate,
       ...(flags.height && {height: flags.height}),
       ...(flags.width && {width: flags.width}),
-      ...(flags.profile && {profile: flags.profile as unknown as ProfileH264}),
+      ...(flags.profile && {profile: flags.profile as ProfileH264}),
       ...(flags.rate && {rate: flags.rate}),
     });
 

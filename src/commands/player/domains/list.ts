@@ -20,7 +20,7 @@ export default class PlayerDomainList extends BaseCommand {
     const api = await this.getApi();
     const licenseId = await resolvePlayerLicense(api, args.license);
     const result = await api.player.licenses.domains.list(licenseId);
-    let items = (result.items ?? []).map((d: any) => ({
+    let items = (result.items ?? []).map((d) => ({
       id: d.id,
       url: d.url,
     }));

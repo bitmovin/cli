@@ -15,36 +15,32 @@ export default class EncodingCodecList extends BaseCommand {
   async run(): Promise<void> {
     const {flags} = await this.parse(EncodingCodecList);
     const api = await this.getApi();
-    const listFn = (q: any) => {
-      q.limit(flags.limit);
-      q.offset(flags.offset);
-      return q;
-    };
+    const listParams = {limit: flags.limit, offset: flags.offset};
 
     const codec = flags.codec?.toLowerCase();
     const type = flags.type?.toLowerCase();
     let items: unknown[];
 
     if (codec === 'h264') {
-      items = (await api.encoding.configurations.video.h264.list(listFn)).items ?? [];
+      items = (await api.encoding.configurations.video.h264.list(listParams)).items ?? [];
     } else if (codec === 'h265') {
-      items = (await api.encoding.configurations.video.h265.list(listFn)).items ?? [];
+      items = (await api.encoding.configurations.video.h265.list(listParams)).items ?? [];
     } else if (codec === 'av1') {
-      items = (await api.encoding.configurations.video.av1.list(listFn)).items ?? [];
+      items = (await api.encoding.configurations.video.av1.list(listParams)).items ?? [];
     } else if (codec === 'vp9') {
-      items = (await api.encoding.configurations.video.vp9.list(listFn)).items ?? [];
+      items = (await api.encoding.configurations.video.vp9.list(listParams)).items ?? [];
     } else if (codec === 'aac') {
-      items = (await api.encoding.configurations.audio.aac.list(listFn)).items ?? [];
+      items = (await api.encoding.configurations.audio.aac.list(listParams)).items ?? [];
     } else if (codec === 'opus') {
-      items = (await api.encoding.configurations.audio.opus.list(listFn)).items ?? [];
+      items = (await api.encoding.configurations.audio.opus.list(listParams)).items ?? [];
     } else {
-      const allItems: any[] = (await api.encoding.configurations.list(listFn)).items ?? [];
+      const allItems = (await api.encoding.configurations.list(listParams)).items ?? [];
       if (type === 'video') {
         const videoCodecs = new Set(['H264', 'H265', 'AV1', 'VP9', 'VP8', 'H262', 'MJPEG']);
-        items = allItems.filter((item: any) => videoCodecs.has(String(item.type ?? '').toUpperCase()));
+        items = allItems.filter((item) => videoCodecs.has(String((item as Record<string, unknown>).type ?? '').toUpperCase()));
       } else if (type === 'audio') {
         const audioCodecs = new Set(['AAC', 'OPUS', 'VORBIS', 'AC3', 'EAC3', 'MP2', 'MP3', 'DTS', 'DTS_PASSTHROUGH', 'DTS_X', 'DTSE']);
-        items = allItems.filter((item: any) => audioCodecs.has(String(item.type ?? '').toUpperCase()));
+        items = allItems.filter((item) => audioCodecs.has(String((item as Record<string, unknown>).type ?? '').toUpperCase()));
       } else {
         items = allItems;
       }

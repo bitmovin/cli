@@ -27,7 +27,8 @@ export interface ApiClient {
 }
 
 // Handle CJS/ESM interop — the SDK may expose the constructor as .default
-const BitmovinApi: BitmovinApiConstructor = (BitmovinApiSdk as any).default ?? BitmovinApiSdk;
+const SdkModule = BitmovinApiSdk as unknown as {default?: BitmovinApiConstructor};
+const BitmovinApi: BitmovinApiConstructor = SdkModule.default ?? (BitmovinApiSdk as unknown as BitmovinApiConstructor);
 
 export function getClient(apiKeyOverride?: string): ApiClient {
   const config = loadConfig();

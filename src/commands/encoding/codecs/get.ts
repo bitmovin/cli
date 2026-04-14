@@ -1,7 +1,8 @@
 import {Args, Flags} from '@oclif/core';
 import {BaseCommand} from '../../../lib/base-command.js';
+import type {ApiClient} from '../../../lib/client.js';
 
-const CODEC_GETTERS: Record<string, (api: any, id: string) => Promise<unknown>> = {
+const CODEC_GETTERS: Record<string, (api: ApiClient, id: string) => Promise<unknown>> = {
   H264: (api, id) => api.encoding.configurations.video.h264.get(id),
   H265: (api, id) => api.encoding.configurations.video.h265.get(id),
   AV1: (api, id) => api.encoding.configurations.video.av1.get(id),

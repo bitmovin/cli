@@ -1,23 +1,25 @@
-export async function resolvePlayerLicense(api: any, idOrKeyOrName: string): Promise<string> {
-  const result = await api.player.licenses.list((q: any) => q.limit(100));
+import type {ApiClient} from './client.js';
+
+export async function resolvePlayerLicense(api: ApiClient, idOrKeyOrName: string): Promise<string> {
+  const result = await api.player.licenses.list({limit: 100});
   const items = result.items ?? [];
 
-  const match = items.find((l: any) => l.id === idOrKeyOrName)
-    ?? items.find((l: any) => l.licenseKey === idOrKeyOrName)
-    ?? items.find((l: any) => l.name === idOrKeyOrName);
+  const match = items.find((l) => l.id === idOrKeyOrName)
+    ?? items.find((l) => l.licenseKey === idOrKeyOrName)
+    ?? items.find((l) => l.name === idOrKeyOrName);
 
-  if (!match) throw new Error(`No player license found for: ${idOrKeyOrName}`);
+  if (!match?.id) throw new Error(`No player license found for: ${idOrKeyOrName}`);
   return match.id;
 }
 
-export async function resolveAnalyticsLicense(api: any, idOrKeyOrName: string): Promise<string> {
-  const result = await api.analytics.licenses.list((q: any) => q.limit(100));
+export async function resolveAnalyticsLicense(api: ApiClient, idOrKeyOrName: string): Promise<string> {
+  const result = await api.analytics.licenses.list({limit: 100});
   const items = result.items ?? [];
 
-  const match = items.find((l: any) => l.id === idOrKeyOrName)
-    ?? items.find((l: any) => l.licenseKey === idOrKeyOrName)
-    ?? items.find((l: any) => l.name === idOrKeyOrName);
+  const match = items.find((l) => l.id === idOrKeyOrName)
+    ?? items.find((l) => l.licenseKey === idOrKeyOrName)
+    ?? items.find((l) => l.name === idOrKeyOrName);
 
-  if (!match) throw new Error(`No analytics license found for: ${idOrKeyOrName}`);
+  if (!match?.id) throw new Error(`No analytics license found for: ${idOrKeyOrName}`);
   return match.id;
 }

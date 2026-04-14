@@ -1,17 +1,17 @@
 import ora from 'ora';
 import chalk from 'chalk';
 import {colorizeStatus} from './output.js';
+import type {ApiClient} from './client.js';
 
 const POLL_INTERVAL_MS = 5000;
 const TERMINAL_STATUSES = new Set(['FINISHED', 'ERROR', 'CANCELED', 'TRANSFER_ERROR']);
 const isTTY = Boolean(process.stderr.isTTY);
 
-export async function waitForEncoding(api: any, encodingId: string): Promise<any> {
+export async function waitForEncoding(api: ApiClient, encodingId: string): Promise<unknown> {
   const spinner = isTTY
     ? ora({text: `Encoding ${encodingId}  starting...`, color: 'cyan', stream: process.stderr}).start()
     : null;
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const task = await api.encoding.encodings.status(encodingId);
     const status = String(task.status ?? 'UNKNOWN');

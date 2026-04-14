@@ -12,13 +12,12 @@ export default class PlayerLicenseList extends BaseCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(PlayerLicenseList);
-    const result = await (await this.getApi()).player.licenses.list((q: any) => {
-      q.limit(flags.limit);
-      q.offset(flags.offset);
-      return q;
+    const result = await (await this.getApi()).player.licenses.list({
+      limit: flags.limit,
+      offset: flags.offset,
     });
 
-    const items = (result.items ?? []).map((l: any) => ({
+    const items = (result.items ?? []).map((l) => ({
       id: l.id,
       name: l.name,
       licenseKey: l.licenseKey,

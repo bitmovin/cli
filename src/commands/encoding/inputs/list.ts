@@ -13,27 +13,23 @@ export default class EncodingInputList extends BaseCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(EncodingInputList);
-    const listFn = (q: any) => {
-      q.limit(flags.limit);
-      q.offset(flags.offset);
-      return q;
-    };
+    const listParams = {limit: flags.limit, offset: flags.offset};
 
     let items: unknown[];
     const type = flags.type?.toLowerCase();
 
     if (type === 's3') {
-      items = (await (await this.getApi()).encoding.inputs.s3.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.inputs.s3.list(listParams)).items ?? [];
     } else if (type === 'gcs') {
-      items = (await (await this.getApi()).encoding.inputs.gcs.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.inputs.gcs.list(listParams)).items ?? [];
     } else if (type === 'http') {
-      items = (await (await this.getApi()).encoding.inputs.http.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.inputs.http.list(listParams)).items ?? [];
     } else if (type === 'https') {
-      items = (await (await this.getApi()).encoding.inputs.https.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.inputs.https.list(listParams)).items ?? [];
     } else if (type === 'azure') {
-      items = (await (await this.getApi()).encoding.inputs.azure.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.inputs.azure.list(listParams)).items ?? [];
     } else {
-      items = (await (await this.getApi()).encoding.inputs.list(listFn)).items ?? [];
+      items = (await (await this.getApi()).encoding.inputs.list(listParams)).items ?? [];
     }
 
     await this.outputList(items as Record<string, unknown>[], ['id', 'name', 'type', 'createdAt']);

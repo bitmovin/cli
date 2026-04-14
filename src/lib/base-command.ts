@@ -35,7 +35,7 @@ export abstract class BaseCommand extends Command {
    * Status/info messages. Goes to stderr in JSON mode so stdout stays clean.
    * Goes to stdout in interactive mode so users see it normally.
    */
-  override log(message?: string, ...args: any[]): void {
+  override log(message?: string, ...args: unknown[]): void {
     if (this._jsonMode?.enabled) {
       this.logToStderr(message, ...args);
     } else {
@@ -117,7 +117,7 @@ export abstract class BaseCommand extends Command {
 
   protected async parseFlags(): Promise<Record<string, unknown>> {
     if (!this._parsedFlags) {
-      const {flags} = await this.parse(this.constructor as any);
+      const {flags} = await this.parse(this.ctor);
       this._parsedFlags = flags;
       const fieldsStr = flags.fields as string | undefined;
       const fields = fieldsStr ? fieldsStr.split(',').map((f: string) => f.trim()) : undefined;
