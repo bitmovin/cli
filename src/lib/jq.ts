@@ -10,10 +10,10 @@ export function applyJq(json: string, expression: string): string {
   } catch (error: unknown) {
     const err = error as NodeJS.ErrnoException & {stderr?: Buffer | string};
     if (err.code === 'ENOENT') {
-      throw new Error('jq is required for --jq. Install it: https://jqlang.github.io/jq/download/');
+      throw new Error('jq is required for --jq. Install it: https://jqlang.github.io/jq/download/', {cause: error});
     }
 
     const stderr = err.stderr?.toString().trim();
-    throw new Error(`jq error: ${stderr || err.message}`);
+    throw new Error(`jq error: ${stderr || err.message}`, {cause: error});
   }
 }
