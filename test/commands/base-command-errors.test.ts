@@ -2,7 +2,14 @@ import {describe, it, expect, vi, afterEach} from 'vitest';
 
 // Mock the config module
 vi.mock('../../src/lib/config.js', () => ({
-  loadConfig: () => ({apiKey: 'test-key'}),
+  loadConfig: () => ({
+    activeProfile: 'default',
+    profiles: {default: {apiKey: 'test-key'}},
+  }),
+  getProfile: (full: any, profileName?: string) => {
+    const name = profileName ?? full.activeProfile;
+    return full.profiles[name] ?? {};
+  },
   saveConfig: () => {},
   getConfigPath: () => '/mock/.config/bitmovin/config.json',
 }));

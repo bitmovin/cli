@@ -40,7 +40,8 @@
     "prepare": "tsc -b",
     "build": "tsc -b",
     "dev": "tsc -b --watch",
-    "test": "vitest run",
+    "typecheck": "tsc -b --noEmit",
+    "test": "npm run typecheck && vitest run",
     "test:watch": "vitest",
     "lint": "eslint src",
     "postpack": "rm -f oclif.manifest.json",
@@ -93,6 +94,9 @@
       },
       "config:list": {
         "description": "List configuration resources"
+      },
+      "config:profile": {
+        "description": "Manage configuration profiles"
       },
       "encoding": {
         "description": "Encoding operations"
