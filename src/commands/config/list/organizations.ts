@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import {BaseCommand} from '../../../lib/base-command.js';
-import {loadConfig} from '../../../lib/config.js';
+import {loadConfig, getProfile} from '../../../lib/config.js';
 
 export default class ConfigListOrganizations extends BaseCommand {
   static override description = 'List available organizations and optionally select one';
@@ -16,19 +16,19 @@ export default class ConfigListOrganizations extends BaseCommand {
   ];
 
   async run(): Promise<void> {
-    const config = loadConfig();
+    const profile = getProfile(loadConfig());
     const result = await (await this.getApi()).account.organizations.list();
     const orgs = result.items ?? [];
 
     // Collect all orgs including sub-orgs for structured output
     const allOrgs: Record<string, unknown>[] = [];
     for (const org of orgs) {
-      allOrgs.push({id: org.id, name: org.name, active: config.tenantOrgId === org.id, parent: null});
+      allOrgs.push({id: org.id, name: org.name, active: profile.tenantOrgId === org.id, parent: null});
       if (org.id) {
         try {
           const subOrgs = await (await this.getApi()).account.organizations.subOrganizations.list(org.id);
           for (const sub of (subOrgs.items ?? [])) {
-            allOrgs.push({id: sub.id, name: sub.name, active: config.tenantOrgId === sub.id, parent: org.id});
+            allOrgs.push({id: sub.id, name: sub.name, active: profile.tenantOrgId === sub.id, parent: org.id});
           }
         } catch {
           // Sub-organizations may not be accessible

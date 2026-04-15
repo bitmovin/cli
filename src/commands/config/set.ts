@@ -1,4 +1,4 @@
-import {Args} from '@oclif/core';
+import {Args, Flags} from '@oclif/core';
 import {BaseCommand} from '../../lib/base-command.js';
 import {loadConfig, saveConfig} from '../../lib/config.js';
 
@@ -22,24 +22,33 @@ export default class ConfigSet extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
+    profile: Flags.string({description: 'Profile to set the value in (default: active profile)'}),
   };
 
   static override examples = [
     'bitmovin config set api-key 41514766-1f1a-480b-aafd-9c89a98932e8',
     'bitmovin config set organization 5a1b2c3d-...',
+    'bitmovin config set api-key my-key --profile production',
     'bitmovin config set default-region GOOGLE_EUROPE_WEST_1',
   ];
 
   async run(): Promise<void> {
-    const {args} = await this.parse(ConfigSet);
+    const {args, flags} = await this.parse(ConfigSet);
     const configKey = VALID_KEYS[args.key];
     if (!configKey) {
       this.error(`Unknown key: ${args.key}. Valid keys: ${Object.keys(VALID_KEYS).join(', ')}`);
     }
 
-    const config = loadConfig();
-    (config as Record<string, string>)[configKey] = args.value;
-    saveConfig(config);
-    this.log(`Set ${args.key} = ${args.key === 'api-key' ? args.value.slice(0, 8) + '...' : args.value}`);
+    const full = loadConfig();
+    const profileName = flags.profile ?? full.activeProfile;
+    if (!full.profiles[profileName]) {
+      full.profiles[profileName] = {};
+    }
+
+    (full.profiles[profileName] as Record<string, string>)[configKey] = args.value;
+    saveConfig(full);
+
+    const suffix = profileName !== 'default' ? ` (profile: ${profileName})` : '';
+    this.log(`Set ${args.key} = ${args.key === 'api-key' ? args.value.slice(0, 8) + '...' : args.value}${suffix}`);
   }
 }

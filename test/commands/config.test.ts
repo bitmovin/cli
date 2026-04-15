@@ -2,15 +2,22 @@ import {describe, it, expect, vi, beforeEach} from 'vitest';
 
 // Mock the config module
 vi.mock('../../src/lib/config.js', () => {
-  let store: Record<string, any> = {};
+  let store = {
+    activeProfile: 'default',
+    profiles: {default: {}} as Record<string, Record<string, string>>,
+  };
   return {
-    loadConfig: () => ({...store}),
-    saveConfig: (config: any) => {
-      store = {...config};
+    loadConfig: () => ({...store, profiles: {...store.profiles}}),
+    saveConfig: (full: typeof store) => {
+      store = {...full};
+    },
+    getProfile: (full: typeof store, profileName?: string) => {
+      const name = profileName ?? full.activeProfile;
+      return full.profiles[name] ?? {};
     },
     getConfigPath: () => '/mock/.config/bitmovin/config.json',
     _reset: () => {
-      store = {};
+      store = {activeProfile: 'default', profiles: {default: {}}};
     },
     _getStore: () => store,
   };
@@ -39,30 +46,47 @@ function captureOutput(): {output: () => string; restore: () => void} {
 describe('config set', () => {
   beforeEach(() => configMock._reset());
 
-  it('sets api-key', async () => {
+  it('sets api-key in the default profile', async () => {
     const cap = captureOutput();
     const {default: Cmd} = await import('../../src/commands/config/set.js');
     await Cmd.run(['api-key', 'my-test-key']);
     cap.restore();
     expect(cap.output()).toContain('Set api-key');
-    expect(configMock._getStore().apiKey).toBe('my-test-key');
+    expect(configMock._getStore().profiles.default.apiKey).toBe('my-test-key');
   });
 
-  it('sets organization', async () => {
+  it('sets organization in the default profile', async () => {
     const cap = captureOutput();
     const {default: Cmd} = await import('../../src/commands/config/set.js');
     await Cmd.run(['organization', 'org-123']);
     cap.restore();
     expect(cap.output()).toContain('Set organization');
-    expect(configMock._getStore().tenantOrgId).toBe('org-123');
+    expect(configMock._getStore().profiles.default.tenantOrgId).toBe('org-123');
   });
 
-  it('sets default-region', async () => {
+  it('sets default-region in the default profile', async () => {
     const cap = captureOutput();
     const {default: Cmd} = await import('../../src/commands/config/set.js');
     await Cmd.run(['default-region', 'AWS_EU_WEST_1']);
     cap.restore();
-    expect(configMock._getStore().defaultRegion).toBe('AWS_EU_WEST_1');
+    expect(configMock._getStore().profiles.default.defaultRegion).toBe('AWS_EU_WEST_1');
+  });
+
+  it('sets api-key in a named profile', async () => {
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/set.js');
+    await Cmd.run(['api-key', 'prod-key', '--profile', 'production']);
+    cap.restore();
+    expect(cap.output()).toContain('profile: production');
+    expect(configMock._getStore().profiles.production.apiKey).toBe('prod-key');
+  });
+
+  it('creates a new profile when it does not exist', async () => {
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/set.js');
+    await Cmd.run(['api-key', 'staging-key', '--profile', 'staging']);
+    cap.restore();
+    expect(configMock._getStore().profiles.staging.apiKey).toBe('staging-key');
   });
 });
 
@@ -78,12 +102,23 @@ describe('config show', () => {
   });
 
   it('masks api key', async () => {
-    configMock.saveConfig({apiKey: '12345678-abcd-1234-abcd-123456789abc'});
+    configMock.saveConfig({
+      activeProfile: 'default',
+      profiles: {default: {apiKey: '12345678-abcd-1234-abcd-123456789abc'}},
+    });
     const cap = captureOutput();
     const {default: Cmd} = await import('../../src/commands/config/show.js');
     await Cmd.run([]);
     cap.restore();
     expect(cap.output()).toContain('12345678...');
     expect(cap.output()).not.toContain('12345678-abcd-1234-abcd-123456789abc');
+  });
+
+  it('shows the active profile label', async () => {
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run([]);
+    cap.restore();
+    expect(cap.output()).toContain('default (active)');
   });
 });

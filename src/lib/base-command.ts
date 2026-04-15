@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import {getClient, type ApiClient} from './client.js';
 import {formatJson, formatTable, formatKeyValue, isTTY} from './output.js';
 import {applyJq} from './jq.js';
-import {loadConfig} from './config.js';
+import {loadConfig, getProfile} from './config.js';
 
 export abstract class BaseCommand extends Command {
   static baseFlags = {
@@ -24,6 +24,7 @@ export abstract class BaseCommand extends Command {
       hidden: false,
     }),
     'api-key': Flags.string({description: 'Override API key'}),
+    profile: Flags.string({description: 'Configuration profile to use', env: 'BITMOVIN_PROFILE'}),
     quiet: Flags.boolean({char: 'q', description: 'Suppress non-essential output'}),
   };
 
@@ -47,7 +48,7 @@ export abstract class BaseCommand extends Command {
   protected override async catch(err: Error & {httpStatusCode?: number; errorCode?: number; developerMessage?: string; requestId?: string}): Promise<void> {
     // Handle Bitmovin API errors
     if (err.httpStatusCode) {
-      const config = loadConfig();
+      const profile = getProfile(loadConfig(), this._parsedFlags?.profile as string | undefined);
       const lines: string[] = [];
 
       switch (err.httpStatusCode) {
@@ -61,8 +62,8 @@ export abstract class BaseCommand extends Command {
         case 403:
           lines.push(chalk.red('Access denied.'));
           lines.push('');
-          if (config.tenantOrgId) {
-            lines.push(`  Active organization: ${config.tenantOrgId}`);
+          if (profile.tenantOrgId) {
+            lines.push(`  Active organization: ${profile.tenantOrgId}`);
             lines.push('  This organization may not have access to this resource.');
             lines.push('');
             lines.push('  Try switching organizations:');
@@ -131,7 +132,10 @@ export abstract class BaseCommand extends Command {
   protected async getApi(): Promise<ApiClient> {
     if (!this._api) {
       const flags = await this.parseFlags();
-      this._api = getClient(flags['api-key'] as string | undefined);
+      this._api = getClient(
+        flags['api-key'] as string | undefined,
+        flags.profile as string | undefined,
+      );
     }
 
     return this._api;
