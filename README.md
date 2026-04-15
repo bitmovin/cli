@@ -10,7 +10,7 @@ The official command-line interface for [Bitmovin](https://bitmovin.com). Manage
 npm install -g @bitmovin/cli
 ```
 
-Requires Node.js 18+.
+Requires Node.js 20+.
 
 ## Quick Start
 
