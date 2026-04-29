@@ -62,6 +62,7 @@ describe('config set', () => {
     const {default: Cmd} = await import('../../src/commands/config/set.js');
     await Cmd.run(['default-region', 'AWS_EU_WEST_1']);
     cap.restore();
+    expect(cap.output()).toContain('Set default-region');
     expect(configMock._getStore().defaultRegion).toBe('AWS_EU_WEST_1');
   });
 });
@@ -77,13 +78,53 @@ describe('config show', () => {
     expect(cap.output()).toContain('Config file:');
   });
 
-  it('masks api key', async () => {
+  it('masks api key from config file', async () => {
+    delete process.env.BITMOVIN_API_KEY;
     configMock.saveConfig({apiKey: '12345678-abcd-1234-abcd-123456789abc'});
     const cap = captureOutput();
     const {default: Cmd} = await import('../../src/commands/config/show.js');
     await Cmd.run([]);
     cap.restore();
     expect(cap.output()).toContain('1234...9abc');
+    expect(cap.output()).toContain('config file');
     expect(cap.output()).not.toContain('12345678-abcd-1234-abcd-123456789abc');
+  });
+
+  it('reports BITMOVIN_API_KEY env var when set, taking precedence over config file', async () => {
+    configMock.saveConfig({apiKey: '12345678-abcd-1234-abcd-123456789abc'});
+    process.env.BITMOVIN_API_KEY = 'eeeeeeee-cafe-dead-beef-feedfacefeed';
+    try {
+      const cap = captureOutput();
+      const {default: Cmd} = await import('../../src/commands/config/show.js');
+      await Cmd.run([]);
+      cap.restore();
+      const out = cap.output();
+      expect(out).toContain('eeee...feed');
+      expect(out).toContain('BITMOVIN_API_KEY env var');
+      expect(out).not.toContain('1234...9abc');
+    } finally {
+      delete process.env.BITMOVIN_API_KEY;
+    }
+  });
+
+  it('reports (not set) when neither env nor config has a key', async () => {
+    delete process.env.BITMOVIN_API_KEY;
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run([]);
+    cap.restore();
+    expect(cap.output()).toContain('API Key:        (not set)');
+  });
+
+  it('exposes apiKeySource in --json mode', async () => {
+    delete process.env.BITMOVIN_API_KEY;
+    configMock.saveConfig({apiKey: 'abcdefgh-1111-2222-3333-444455556666'});
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run(['--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.apiKeySource).toBe('config-file');
+    expect(data.apiKey).toBe('abcd...6666');
   });
 });
