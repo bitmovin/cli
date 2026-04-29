@@ -31,6 +31,19 @@ const SdkModule = BitmovinApiSdk as unknown as {default?: BitmovinApiConstructor
 const BitmovinApi: BitmovinApiConstructor = SdkModule.default ?? (BitmovinApiSdk as unknown as BitmovinApiConstructor);
 
 export function getClient(apiKeyOverride?: string): ApiClient {
+  const {apiKey, tenantOrgId} = resolveAuth(apiKeyOverride);
+  return new BitmovinApi({
+    apiKey,
+    ...(tenantOrgId && {tenantOrgId}),
+  });
+}
+
+/**
+ * Resolve API auth from CLI override, env var, or config file. Used both by
+ * `getClient()` and by commands that need to make raw HTTP requests outside
+ * the SDK (e.g. when an endpoint expects a non-JSON body).
+ */
+export function resolveAuth(apiKeyOverride?: string): {apiKey: string; tenantOrgId?: string} {
   const config = loadConfig();
   const apiKey = apiKeyOverride ?? process.env.BITMOVIN_API_KEY ?? config.apiKey;
 
@@ -43,8 +56,7 @@ export function getClient(apiKeyOverride?: string): ApiClient {
     );
   }
 
-  return new BitmovinApi({
-    apiKey,
-    ...(config.tenantOrgId && {tenantOrgId: config.tenantOrgId}),
-  });
+  return {apiKey, tenantOrgId: config.tenantOrgId};
 }
+
+export const API_BASE_URL = 'https://api.bitmovin.com/v1';
