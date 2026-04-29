@@ -80,6 +80,16 @@ describe('account info', () => {
     );
   });
 
+  it('masks the API key value in default (table) output', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/account/info.js');
+    await Cmd.run([]);
+    cap.restore();
+    const out = cap.output();
+    expect(out).not.toContain('aaaabbbb-1111-2222-3333-eeeeeeeeffff');
+    expect(out).toContain('aaaa...ffff');
+  });
+
   it('shows secrets in plaintext when --show-secrets is set', async () => {
     const cap = captureStdout();
     const {default: Cmd} = await import('../../src/commands/account/info.js');
