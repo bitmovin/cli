@@ -1,5 +1,5 @@
 import {afterEach, describe, it, expect, vi} from 'vitest';
-import {writeFileSync, mkdtempSync} from 'node:fs';
+import {writeFileSync, mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
@@ -53,9 +53,16 @@ function captureStdout(): {output: () => string; restore: () => void} {
     captured += typeof chunk === 'string' ? chunk : chunk.toString();
     return true;
   });
+  let restored = false;
+  const restore = () => {
+    if (restored) return;
+    restored = true;
+    mock.mockRestore();
+  };
+  cleanupCallbacks.push(restore);
   return {
     output: () => captured,
-    restore: () => mock.mockRestore(),
+    restore,
   };
 }
 
@@ -172,6 +179,7 @@ describe('encoding templates validate', () => {
 
   function setup(): string {
     const dir = mkdtempSync(join(tmpdir(), 'bm-cli-validate-'));
+    cleanupCallbacks.push(() => rmSync(dir, {recursive: true, force: true}));
     // Empty temp dir → loadSchema's cache check misses → fetch fires.
     process.env.BM_CLI_TEST_HOME = dir;
     vi.stubGlobal(
