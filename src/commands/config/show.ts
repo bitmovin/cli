@@ -21,7 +21,7 @@ export default class ConfigShow extends BaseCommand {
   async run(): Promise<void> {
     const config = loadConfig();
     const resolved = resolveApiKey(config);
-    const maskedKey = resolved.value ? maskSecret(resolved.value) : undefined;
+    const maskedKey = resolved.value !== undefined ? maskSecret(resolved.value) : undefined;
 
     if (await this.isJsonMode()) {
       await this.outputData({

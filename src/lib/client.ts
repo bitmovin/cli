@@ -9,10 +9,10 @@ export interface ResolvedApiKey {
 }
 
 export function resolveApiKey(config: CliConfig, apiKeyOverride?: string): ResolvedApiKey {
-  if (apiKeyOverride) return {value: apiKeyOverride, source: 'flag'};
+  if (apiKeyOverride !== undefined) return {value: apiKeyOverride, source: 'flag'};
   const fromEnv = process.env.BITMOVIN_API_KEY;
-  if (fromEnv) return {value: fromEnv, source: 'env'};
-  if (config.apiKey) return {value: config.apiKey, source: 'config-file'};
+  if (fromEnv !== undefined) return {value: fromEnv, source: 'env'};
+  if (config.apiKey !== undefined) return {value: config.apiKey, source: 'config-file'};
   return {source: 'none'};
 }
 
