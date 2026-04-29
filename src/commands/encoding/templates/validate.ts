@@ -11,10 +11,11 @@ const SCHEMA_URL =
   'https://raw.githubusercontent.com/bitmovin/bitmovin-api-sdk-examples/main/bitmovin-encoding-template.json';
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const SCHEMA_CACHE_VERSION = 1;
 
 function getCachePaths(): {dir: string; file: string} {
   const dir = join(homedir(), '.config', 'bitmovin');
-  return {dir, file: join(dir, 'template-schema.json')};
+  return {dir, file: join(dir, `template-schema-v${SCHEMA_CACHE_VERSION}.json`)};
 }
 
 async function loadSchema(): Promise<object> {
@@ -82,10 +83,11 @@ export default class EncodingTemplateValidate extends BaseCommand {
     const ajv = new Ajv2020({
       allErrors: true,
       strict: false,
-      // Suppress "unknown format" noise for OpenAPI-flavored format hints
-      // (e.g. "double", "int32") that aren't part of JSON Schema validation.
-      logger: false,
     });
+    // The upstream schema uses OpenAPI numeric format hints. AJV does not
+    // validate these by default, so register them as annotations instead of
+    // muting all AJV logger output.
+    ajv.addFormat('double', true);
     const validate = ajv.compile(schema);
     const valid = validate(doc);
 
