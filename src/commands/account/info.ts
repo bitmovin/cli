@@ -18,6 +18,9 @@ function maskSecret(secret: string): string {
   return secret.slice(0, 4) + '…' + secret.slice(-4);
 }
 
+// Allowlist-style: any new secret-bearing field returned by the API must be
+// added here explicitly. The `[key: string]: unknown` index signature on
+// AccountInfoData means unknown fields pass through unredacted by design.
 function redact(info: AccountInfoData): AccountInfoData {
   const result: AccountInfoData = {...info};
   if (Array.isArray(result.apiKeys)) {
