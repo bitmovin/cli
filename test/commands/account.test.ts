@@ -5,6 +5,14 @@ const mockAccountInfo = {
   email: 'user@bitmovin.com',
   firstName: 'Test',
   lastName: 'User',
+  apiKeys: [
+    {
+      id: 'key-1',
+      value: 'aaaabbbb-1111-2222-3333-eeeeeeeeffff',
+      createdAt: null,
+    },
+  ],
+  intercomIdVerification: 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
 };
 
 vi.mock('../../src/lib/client.js', () => ({
@@ -47,5 +55,40 @@ describe('account info', () => {
     cap.restore();
     const out = cap.output();
     expect(out).toContain('user@bitmovin.com');
+  });
+
+  it('masks the API key value by default', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/account/info.js');
+    await Cmd.run(['--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(JSON.stringify(data)).not.toContain('aaaabbbb-1111-2222-3333-eeeeeeeeffff');
+    expect(data.apiKeys[0].value).toBe('aaaa…ffff');
+    expect(data.apiKeys[0].id).toBe('key-1');
+  });
+
+  it('masks the intercom verification token by default', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/account/info.js');
+    await Cmd.run(['--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.intercomIdVerification).toBe('abcd…6789');
+    expect(JSON.stringify(data)).not.toContain(
+      'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+    );
+  });
+
+  it('shows secrets in plaintext when --show-secrets is set', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/account/info.js');
+    await Cmd.run(['--json', '--show-secrets']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.apiKeys[0].value).toBe('aaaabbbb-1111-2222-3333-eeeeeeeeffff');
+    expect(data.intercomIdVerification).toBe(
+      'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+    );
   });
 });
