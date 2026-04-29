@@ -1,4 +1,4 @@
-import {describe, it, expect, vi, beforeEach} from 'vitest';
+import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 
 // Mock the config module
 vi.mock('../../src/lib/config.js', () => {
@@ -68,7 +68,20 @@ describe('config set', () => {
 });
 
 describe('config show', () => {
-  beforeEach(() => configMock._reset());
+  const originalEnv = process.env.BITMOVIN_API_KEY;
+
+  beforeEach(() => {
+    configMock._reset();
+    delete process.env.BITMOVIN_API_KEY;
+  });
+
+  afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env.BITMOVIN_API_KEY;
+    } else {
+      process.env.BITMOVIN_API_KEY = originalEnv;
+    }
+  });
 
   it('shows config file path', async () => {
     const cap = captureOutput();
@@ -79,7 +92,6 @@ describe('config show', () => {
   });
 
   it('masks api key from config file', async () => {
-    delete process.env.BITMOVIN_API_KEY;
     configMock.saveConfig({apiKey: '12345678-abcd-1234-abcd-123456789abc'});
     const cap = captureOutput();
     const {default: Cmd} = await import('../../src/commands/config/show.js');
@@ -93,22 +105,17 @@ describe('config show', () => {
   it('reports BITMOVIN_API_KEY env var when set, taking precedence over config file', async () => {
     configMock.saveConfig({apiKey: '12345678-abcd-1234-abcd-123456789abc'});
     process.env.BITMOVIN_API_KEY = 'eeeeeeee-cafe-dead-beef-feedfacefeed';
-    try {
-      const cap = captureOutput();
-      const {default: Cmd} = await import('../../src/commands/config/show.js');
-      await Cmd.run([]);
-      cap.restore();
-      const out = cap.output();
-      expect(out).toContain('eeee...feed');
-      expect(out).toContain('BITMOVIN_API_KEY env var');
-      expect(out).not.toContain('1234...9abc');
-    } finally {
-      delete process.env.BITMOVIN_API_KEY;
-    }
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run([]);
+    cap.restore();
+    const out = cap.output();
+    expect(out).toContain('eeee...feed');
+    expect(out).toContain('BITMOVIN_API_KEY env var');
+    expect(out).not.toContain('1234...9abc');
   });
 
   it('reports (not set) when neither env nor config has a key', async () => {
-    delete process.env.BITMOVIN_API_KEY;
     const cap = captureOutput();
     const {default: Cmd} = await import('../../src/commands/config/show.js');
     await Cmd.run([]);
@@ -117,7 +124,6 @@ describe('config show', () => {
   });
 
   it('exposes apiKeySource in --json mode', async () => {
-    delete process.env.BITMOVIN_API_KEY;
     configMock.saveConfig({apiKey: 'abcdefgh-1111-2222-3333-444455556666'});
     const cap = captureOutput();
     const {default: Cmd} = await import('../../src/commands/config/show.js');

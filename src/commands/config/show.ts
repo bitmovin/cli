@@ -1,27 +1,13 @@
 import {BaseCommand} from '../../lib/base-command.js';
 import {loadConfig, getConfigPath} from '../../lib/config.js';
+import {resolveApiKey, type ApiKeySource} from '../../lib/client.js';
 import {maskSecret} from '../../lib/secrets.js';
 
-type ApiKeySource = 'env' | 'config-file' | 'none';
-
-interface ResolvedApiKey {
-  value?: string;
-  source: ApiKeySource;
-}
-
-function resolveApiKey(): ResolvedApiKey {
-  const config = loadConfig();
-  const fromEnv = process.env.BITMOVIN_API_KEY;
-  if (fromEnv) return {value: fromEnv, source: 'env'};
-  if (config.apiKey) return {value: config.apiKey, source: 'config-file'};
-  return {source: 'none'};
-}
-
-function describeSource(source: ApiKeySource): string {
+function describeSource(source: Exclude<ApiKeySource, 'none'>): string {
   switch (source) {
+    case 'flag': return '--api-key flag';
     case 'env': return 'BITMOVIN_API_KEY env var';
     case 'config-file': return 'config file';
-    case 'none': return '(not set)';
   }
 }
 
@@ -34,7 +20,7 @@ export default class ConfigShow extends BaseCommand {
 
   async run(): Promise<void> {
     const config = loadConfig();
-    const resolved = resolveApiKey();
+    const resolved = resolveApiKey(config);
     const maskedKey = resolved.value ? maskSecret(resolved.value) : undefined;
 
     if (await this.isJsonMode()) {

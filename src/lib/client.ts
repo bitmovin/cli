@@ -1,5 +1,20 @@
 import BitmovinApiSdk from '@bitmovin/api-sdk';
-import {loadConfig} from './config.js';
+import {loadConfig, type CliConfig} from './config.js';
+
+export type ApiKeySource = 'flag' | 'env' | 'config-file' | 'none';
+
+export interface ResolvedApiKey {
+  value?: string;
+  source: ApiKeySource;
+}
+
+export function resolveApiKey(config: CliConfig, apiKeyOverride?: string): ResolvedApiKey {
+  if (apiKeyOverride) return {value: apiKeyOverride, source: 'flag'};
+  const fromEnv = process.env.BITMOVIN_API_KEY;
+  if (fromEnv) return {value: fromEnv, source: 'env'};
+  if (config.apiKey) return {value: config.apiKey, source: 'config-file'};
+  return {source: 'none'};
+}
 
 // The Bitmovin SDK is CJS with `export default class BitmovinApi`.
 // Under NodeNext module resolution, TypeScript treats default imports from CJS
@@ -32,7 +47,7 @@ const BitmovinApi: BitmovinApiConstructor = SdkModule.default ?? (BitmovinApiSdk
 
 export function getClient(apiKeyOverride?: string): ApiClient {
   const config = loadConfig();
-  const apiKey = apiKeyOverride ?? process.env.BITMOVIN_API_KEY ?? config.apiKey;
+  const {value: apiKey} = resolveApiKey(config, apiKeyOverride);
 
   if (!apiKey) {
     throw new Error(
