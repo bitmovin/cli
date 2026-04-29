@@ -27,6 +27,7 @@ export default class EncodingTemplateCreate extends BaseCommand {
   async run(): Promise<void> {
     const {args, flags} = await this.parse(EncodingTemplateCreate);
     const content = readFileSync(args.file, 'utf-8');
+    await this.isJsonMode();
 
     const {apiKey, tenantOrgId} = resolveAuth(flags['api-key']);
 

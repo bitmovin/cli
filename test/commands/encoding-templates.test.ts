@@ -124,6 +124,22 @@ describe('encoding templates create', () => {
     delete process.env.BITMOVIN_API_KEY;
   });
 
+  it('outputs clean JSON with --json', async () => {
+    const {dir} = setupCreate();
+    const file = join(dir, 't.yaml');
+    writeFileSync(file, 'metadata:\n  name: Test\n');
+    const cap = captureStdout();
+    const capErr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const {default: Cmd} = await import('../../src/commands/encoding/templates/create.js');
+    await Cmd.run([file, '--json']);
+    cap.restore();
+    capErr.mockRestore();
+    const data = JSON.parse(cap.output());
+    expect(data).toEqual({id: 'tmpl-new', name: 'Test'});
+    vi.unstubAllGlobals();
+    delete process.env.BITMOVIN_API_KEY;
+  });
+
   it('surfaces API error message on failure', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'bm-cli-create-'));
     process.env.BITMOVIN_API_KEY = 'test-key-create';
