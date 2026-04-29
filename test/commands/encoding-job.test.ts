@@ -15,6 +15,13 @@ const mockApi = {
       start: async () => ({}),
       stop: async () => ({}),
       delete: async () => ({}),
+      live: {
+        get: async (id: string) => ({
+          encoderIp: id === 'enc-3' ? '34.10.20.30' : undefined,
+          streamKey: 'demo-key',
+          application: 'live',
+        }),
+      },
     },
   },
 };
@@ -112,5 +119,40 @@ describe('encoding job status', () => {
     expect(out).toContain('Status:');
     expect(out).toContain('FINISHED');
     expect(out).toContain('100%');
+  });
+});
+
+describe('encoding job live', () => {
+  it('prints encoder IP, stream key, and application', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-3']);
+    cap.restore();
+    const out = cap.output();
+    expect(out).toContain('Encoder IP:');
+    expect(out).toContain('34.10.20.30');
+    expect(out).toContain('Stream Key:');
+    expect(out).toContain('demo-key');
+    expect(out).toContain('Application:');
+    expect(out).toContain('live');
+  });
+
+  it('shows "(not yet running)" when encoderIp is unset', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-1']);
+    cap.restore();
+    expect(cap.output()).toContain('(not yet running)');
+  });
+
+  it('outputs JSON with --json', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-3', '--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.encoderIp).toBe('34.10.20.30');
+    expect(data.streamKey).toBe('demo-key');
+    expect(data.application).toBe('live');
   });
 });
