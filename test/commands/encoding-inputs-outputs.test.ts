@@ -16,6 +16,9 @@ const inputCreateHttpsMock = vi.fn().mockResolvedValue({id: 'in-new-https', name
 const inputDeleteS3Mock = vi.fn().mockResolvedValue({});
 const outputCreateS3Mock = vi.fn().mockResolvedValue({id: 'out-new-s3', name: 'New S3 Out'});
 const outputCreateGcsMock = vi.fn().mockResolvedValue({id: 'out-new-gcs', name: 'New GCS Out'});
+const outputCreateGcsSaMock = vi
+  .fn()
+  .mockResolvedValue({id: 'out-new-gcs-sa', name: 'New GCS SA Out', type: 'GCS_SERVICE_ACCOUNT'});
 const outputDeleteS3Mock = vi.fn().mockResolvedValue({});
 
 vi.mock('../../src/lib/client.js', () => ({
@@ -70,7 +73,7 @@ vi.mock('../../src/lib/client.js', () => ({
           delete: vi.fn(),
         },
         azure: {list: async () => ({items: []}), delete: vi.fn()},
-        gcsServiceAccount: {delete: vi.fn()},
+        gcsServiceAccount: {create: outputCreateGcsSaMock, delete: vi.fn()},
         ftp: {delete: vi.fn()},
         sftp: {delete: vi.fn()},
         akamaiNetstorage: {delete: vi.fn()},
@@ -235,5 +238,93 @@ describe('encoding outputs create', () => {
     expect(outputCreateGcsMock).toHaveBeenCalled();
     const data = JSON.parse(cap.output());
     expect(data.id).toBe('out-new-gcs');
+  });
+});
+
+describe('encoding outputs create gcs-service-account', () => {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const os = require('node:os') as typeof import('node:os');
+  const path = require('node:path') as typeof import('node:path');
+
+  function writeKey(content: string): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bm-cli-sa-'));
+    const file = path.join(dir, 'sa.json');
+    fs.writeFileSync(file, content);
+    return file;
+  }
+
+  it('creates an output reading the SA JSON key file', async () => {
+    const keyFile = writeKey(JSON.stringify({type: 'service_account', project_id: 'p'}));
+    const cap = captureStdout();
+    const {default: Cmd} = await import(
+      '../../src/commands/encoding/outputs/create/gcs-service-account.js'
+    );
+    await Cmd.run([
+      '--name',
+      'My GCS SA',
+      '--bucket',
+      'my-bucket',
+      '--service-account-key-file',
+      keyFile,
+      '--cloud-region',
+      'EUROPE_WEST_1',
+      '--json',
+    ]);
+    cap.restore();
+    expect(outputCreateGcsSaMock).toHaveBeenCalled();
+    const arg = outputCreateGcsSaMock.mock.calls[0][0];
+    expect(arg.name).toBe('My GCS SA');
+    expect(arg.bucketName).toBe('my-bucket');
+    expect(typeof arg.serviceAccountCredentials).toBe('string');
+    // Confirm the credentials are passed verbatim (not parsed/re-stringified).
+    expect(JSON.parse(arg.serviceAccountCredentials).type).toBe('service_account');
+    expect(arg.cloudRegion).toBe('EUROPE_WEST_1');
+    const data = JSON.parse(cap.output());
+    expect(data.id).toBe('out-new-gcs-sa');
+  });
+
+  it('rejects an invalid JSON key file before calling the API', async () => {
+    const keyFile = writeKey('not actually json');
+    outputCreateGcsSaMock.mockClear();
+    const cap = captureStdout();
+    const errCap = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const {default: Cmd} = await import(
+      '../../src/commands/encoding/outputs/create/gcs-service-account.js'
+    );
+    await expect(
+      Cmd.run([
+        '--name',
+        'x',
+        '--bucket',
+        'b',
+        '--service-account-key-file',
+        keyFile,
+      ]),
+    ).rejects.toThrow(/EEXIT|not valid JSON/);
+    cap.restore();
+    errCap.mockRestore();
+    expect(outputCreateGcsSaMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing key file', async () => {
+    outputCreateGcsSaMock.mockClear();
+    const cap = captureStdout();
+    const errCap = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const {default: Cmd} = await import(
+      '../../src/commands/encoding/outputs/create/gcs-service-account.js'
+    );
+    await expect(
+      Cmd.run([
+        '--name',
+        'x',
+        '--bucket',
+        'b',
+        '--service-account-key-file',
+        '/no/such/path.json',
+      ]),
+    ).rejects.toThrow(/EEXIT|Could not read/);
+    cap.restore();
+    errCap.mockRestore();
+    expect(outputCreateGcsSaMock).not.toHaveBeenCalled();
   });
 });
