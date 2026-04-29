@@ -149,5 +149,8 @@
         "description": "Account information"
       }
     }
+  },
+  "overrides": {
+    "whatwg-url": "^14.0.0"
   }
 }
