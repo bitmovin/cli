@@ -13,14 +13,22 @@ interface LiveDetails {
 interface ApiError extends Error {
   httpStatusCode?: number;
   developerMessage?: string;
+  errorCode?: string;
 }
 
 function isLiveDetailsUnavailable(err: unknown): err is ApiError {
   if (!(err instanceof Error)) return false;
 
   const apiError = err as ApiError;
-  const message = apiError.developerMessage ?? apiError.message;
-  return apiError.httpStatusCode === 400 && /Details for live encoding with id '.+' are not available at the moment\./.test(message);
+  if (apiError.httpStatusCode !== 400) return false;
+
+  const errorCode = apiError.errorCode?.toLowerCase();
+  if (errorCode && errorCode.includes('live') && errorCode.includes('not') && errorCode.includes('available')) {
+    return true;
+  }
+
+  const message = (apiError.developerMessage ?? apiError.message ?? '').toLowerCase();
+  return message.includes('not available') && (message.includes('live encoding') || message.includes('live details'));
 }
 
 export default class EncodingJobLive extends BaseCommand {
@@ -44,7 +52,8 @@ export default class EncodingJobLive extends BaseCommand {
     let live: LiveDetails;
 
     try {
-      live = (await (await this.getApi()).encoding.encodings.live.get(args.id)) as LiveDetails;
+      const api = await this.getApi();
+      live = (await api.encoding.encodings.live.get(args.id)) as LiveDetails;
     } catch (err) {
       if (!isLiveDetailsUnavailable(err)) throw err;
 
