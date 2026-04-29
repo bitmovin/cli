@@ -110,8 +110,8 @@ describe('encoding templates start', () => {
 });
 
 describe('encoding templates validate', () => {
-  // Minimal schema covering just enough to test that a 2020-12 schema
-  // compiles successfully and required-field violations are reported.
+  // Minimal 2020-12 schema modeled after the real encoding template schema.
+  // It keeps the tests fast while covering representative YAML shape errors.
   const miniSchema = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     type: 'object',
@@ -124,7 +124,37 @@ describe('encoding templates validate', () => {
         },
         required: ['name', 'type'],
       },
-      encodings: {type: 'object'},
+      inputs: {type: 'object'},
+      outputs: {type: 'object'},
+      configurations: {type: 'object'},
+      filters: {type: 'object'},
+      encodings: {
+        type: 'object',
+        patternProperties: {
+          '^[A-Za-z0-9_-]+$': {
+            type: 'object',
+            properties: {
+              properties: {
+                type: 'object',
+                properties: {
+                  name: {type: 'string'},
+                  type: {enum: ['LIVE', 'VOD', 'NONE']},
+                  cloudRegion: {enum: ['AWS_US_EAST_1', 'GOOGLE_US_CENTRAL_1']},
+                },
+              },
+              start: {
+                type: 'object',
+                properties: {
+                  encodingMode: {enum: ['STANDARD', 'SINGLE_PASS', 'TWO_PASS']},
+                },
+              },
+              live: {type: 'object'},
+            },
+          },
+        },
+      },
+      live: {type: 'object'},
+      manifests: {type: 'object'},
     },
     required: ['metadata', 'encodings'],
   };
@@ -186,6 +216,63 @@ describe('encoding templates validate', () => {
     expect(out).toContain('Validation errors');
     expect(out).toContain("required property 'encodings'");
     expect(out).toContain('/metadata/type');
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ['empty document', '', '/: must be object'],
+    ['scalar document', 'just-a-string\n', '/: must be object'],
+    ['missing metadata', 'encodings: {}\n', "required property 'metadata'"],
+    ['missing encodings', 'metadata:\n  name: t\n  type: VOD\n', "required property 'encodings'"],
+    ['metadata missing type', 'metadata:\n  name: t\nencodings: {}\n', "required property 'type'"],
+    ['metadata name with wrong type', 'metadata:\n  name: 123\n  type: VOD\nencodings: {}\n', '/metadata/name'],
+    ['metadata with invalid type', 'metadata:\n  name: t\n  type: BOGUS\nencodings: {}\n', '/metadata/type'],
+    ['null metadata', 'metadata: null\nencodings: {}\n', '/metadata: must be object'],
+    ['encodings with wrong type', 'metadata:\n  name: t\n  type: VOD\nencodings: []\n', '/encodings: must be object'],
+    ['inputs with wrong type', 'metadata:\n  name: t\n  type: VOD\nencodings: {}\ninputs: []\n', '/inputs: must be object'],
+    ['outputs with wrong type', 'metadata:\n  name: t\n  type: VOD\nencodings: {}\noutputs: nope\n', '/outputs: must be object'],
+    [
+      'configurations with wrong type',
+      'metadata:\n  name: t\n  type: VOD\nencodings: {}\nconfigurations: []\n',
+      '/configurations: must be object',
+    ],
+    ['live with wrong type', 'metadata:\n  name: t\n  type: LIVE\nencodings: {}\nlive: no\n', '/live: must be object'],
+    ['manifests with wrong type', 'metadata:\n  name: t\n  type: VOD\nencodings: {}\nmanifests: []\n', '/manifests: must be object'],
+    [
+      'encoding cloudRegion with invalid enum value',
+      'metadata:\n  name: t\n  type: VOD\nencodings:\n  main:\n    properties:\n      name: main\n      type: VOD\n      cloudRegion: MARS_1\n',
+      '/encodings/main/properties/cloudRegion',
+    ],
+    [
+      'encoding start mode with invalid enum value',
+      'metadata:\n  name: t\n  type: VOD\nencodings:\n  main:\n    start:\n      encodingMode: BOGUS\n',
+      '/encodings/main/start/encodingMode',
+    ],
+    [
+      'encoding live block with wrong type',
+      'metadata:\n  name: t\n  type: VOD\nencodings:\n  main:\n    live: nope\n',
+      '/encodings/main/live: must be object',
+    ],
+  ])('reports invalid YAML template shape: %s', async (_name, yamlContent, expectedError) => {
+    const dir = setup();
+    const file = join(dir, 'invalid-shape.yaml');
+    writeFileSync(file, yamlContent);
+    const cap = captureLogs();
+    const {default: Cmd} = await import('../../src/commands/encoding/templates/validate.js');
+    await expect(Cmd.run([file])).rejects.toThrow(/EEXIT: 1/);
+    cap.restore();
+    const out = cap.output();
+    expect(out).toContain('Validation errors');
+    expect(out).toContain(expectedError);
+    vi.unstubAllGlobals();
+  });
+
+  it('reports invalid YAML syntax before schema validation', async () => {
+    const dir = setup();
+    const file = join(dir, 'invalid-syntax.yaml');
+    writeFileSync(file, 'metadata:\n  name: [unterminated\n');
+    const {default: Cmd} = await import('../../src/commands/encoding/templates/validate.js');
+    await expect(Cmd.run([file])).rejects.toThrow('Invalid YAML syntax');
     vi.unstubAllGlobals();
   });
 });
