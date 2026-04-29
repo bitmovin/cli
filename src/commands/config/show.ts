@@ -1,7 +1,11 @@
 import {BaseCommand} from '../../lib/base-command.js';
 import {loadConfig, getConfigPath} from '../../lib/config.js';
-import {resolveApiKey, type ApiKeySource} from '../../lib/client.js';
+import {resolveApiKey, type ApiKeySource, type ResolvedApiKey} from '../../lib/api-key.js';
 import {maskSecret} from '../../lib/secrets.js';
+
+function assertNever(value: never): never {
+  throw new Error(`Unexpected API key source: ${String(value)}`);
+}
 
 function describeSource(source: Exclude<ApiKeySource, 'none'>): string {
   switch (source) {
@@ -9,19 +13,26 @@ function describeSource(source: Exclude<ApiKeySource, 'none'>): string {
     case 'env': return 'BITMOVIN_API_KEY env var';
     case 'config-file': return 'config file';
   }
+
+  return assertNever(source);
+}
+
+function normalizeForDisplay(resolved: ResolvedApiKey): ResolvedApiKey {
+  return resolved.value ? resolved : {source: 'none'};
 }
 
 export default class ConfigShow extends BaseCommand {
-  static override description = 'Show current configuration. Resolves the API key from BITMOVIN_API_KEY first, then the config file.';
+  static override description = 'Show current configuration. Resolves the API key from --api-key, BITMOVIN_API_KEY, then the config file.';
 
   static override flags = {
     ...BaseCommand.baseFlags,
   };
 
   async run(): Promise<void> {
+    const flags = await this.parseFlags();
     const config = loadConfig();
-    const resolved = resolveApiKey(config);
-    const maskedKey = resolved.value !== undefined ? maskSecret(resolved.value) : undefined;
+    const resolved = normalizeForDisplay(resolveApiKey(config, flags['api-key'] as string | undefined));
+    const maskedKey = resolved.value ? maskSecret(resolved.value) : undefined;
 
     if (await this.isJsonMode()) {
       await this.outputData({

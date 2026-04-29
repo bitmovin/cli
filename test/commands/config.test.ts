@@ -113,6 +113,21 @@ describe('config show', () => {
     expect(out).toContain('eeee...feed');
     expect(out).toContain('BITMOVIN_API_KEY env var');
     expect(out).not.toContain('1234...9abc');
+    expect(out).not.toContain('config file');
+  });
+
+  it('reports --api-key flag when set, taking precedence over env and config file', async () => {
+    configMock.saveConfig({apiKey: '12345678-abcd-1234-abcd-123456789abc'});
+    process.env.BITMOVIN_API_KEY = 'eeeeeeee-cafe-dead-beef-feedfacefeed';
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run(['--api-key', 'ffffffff-cafe-dead-beef-feedfacefeed']);
+    cap.restore();
+    const out = cap.output();
+    expect(out).toContain('ffff...feed');
+    expect(out).toContain('--api-key flag');
+    expect(out).not.toContain('eeee...feed');
+    expect(out).not.toContain('1234...9abc');
   });
 
   it('reports (not set) when neither env nor config has a key', async () => {
@@ -123,7 +138,7 @@ describe('config show', () => {
     expect(cap.output()).toContain('API Key:        (not set)');
   });
 
-  it('exposes apiKeySource in --json mode', async () => {
+  it('exposes config-file apiKeySource in --json mode', async () => {
     configMock.saveConfig({apiKey: 'abcdefgh-1111-2222-3333-444455556666'});
     const cap = captureOutput();
     const {default: Cmd} = await import('../../src/commands/config/show.js');
@@ -132,5 +147,39 @@ describe('config show', () => {
     const data = JSON.parse(cap.output());
     expect(data.apiKeySource).toBe('config-file');
     expect(data.apiKey).toBe('abcd...6666');
+  });
+
+  it('exposes env apiKeySource in --json mode when BITMOVIN_API_KEY is set', async () => {
+    configMock.saveConfig({apiKey: '12345678-abcd-1234-abcd-123456789abc'});
+    process.env.BITMOVIN_API_KEY = 'eeeeeeee-cafe-dead-beef-feedfacefeed';
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run(['--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.apiKeySource).toBe('env');
+    expect(data.apiKey).toBe('eeee...feed');
+  });
+
+  it('exposes none apiKeySource in --json mode and null apiKey when unset', async () => {
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run(['--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.apiKeySource).toBe('none');
+    expect(data.apiKey).toBeNull();
+  });
+
+  it('treats empty API key values as unset in config show output', async () => {
+    configMock.saveConfig({apiKey: '12345678-abcd-1234-abcd-123456789abc'});
+    process.env.BITMOVIN_API_KEY = '';
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run(['--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.apiKeySource).toBe('none');
+    expect(data.apiKey).toBeNull();
   });
 });
