@@ -1,28 +1,17 @@
 import {Flags} from '@oclif/core';
+import {AccountInformation} from '@bitmovin/api-sdk';
 import {BaseCommand} from '../../lib/base-command.js';
-
-interface ApiKey {
-  id?: string;
-  value?: string;
-  [key: string]: unknown;
-}
-
-interface AccountInfoData {
-  apiKeys?: ApiKey[];
-  intercomIdVerification?: string;
-  [key: string]: unknown;
-}
 
 function maskSecret(secret: string): string {
   if (secret.length <= 8) return '***';
   return secret.slice(0, 4) + '...' + secret.slice(-4);
 }
 
-// Allowlist-style: any new secret-bearing field returned by the API must be
-// added here explicitly. The `[key: string]: unknown` index signature on
-// AccountInfoData means unknown fields pass through unredacted by design.
-function redact(info: AccountInfoData): AccountInfoData {
-  const result: AccountInfoData = {...info};
+// Allowlist-style: any new secret-bearing field added to AccountInformation
+// must be redacted here explicitly. Fields not listed below pass through
+// unmodified.
+function redact(info: AccountInformation): AccountInformation {
+  const result: AccountInformation = {...info};
   if (Array.isArray(result.apiKeys)) {
     result.apiKeys = result.apiKeys.map((key) => ({
       ...key,
@@ -50,7 +39,7 @@ export default class AccountInfo extends BaseCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(AccountInfo);
-    const info = (await (await this.getApi()).account.information.get()) as AccountInfoData;
+    const info = await (await this.getApi()).account.information.get();
     const output = flags['show-secrets'] ? info : redact(info);
     await this.outputData(output);
   }
