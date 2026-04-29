@@ -1,11 +1,8 @@
 import {Flags} from '@oclif/core';
 import {AccountInformation} from '@bitmovin/api-sdk';
+import chalk from 'chalk';
 import {BaseCommand} from '../../lib/base-command.js';
-
-function maskSecret(secret: string): string {
-  if (secret.length <= 8) return '***';
-  return secret.slice(0, 4) + '...' + secret.slice(-4);
-}
+import {maskSecret} from '../../lib/secrets.js';
 
 // Allowlist-style: any new secret-bearing field added to AccountInformation
 // must be redacted here explicitly. Fields not listed below pass through
@@ -40,6 +37,10 @@ export default class AccountInfo extends BaseCommand {
   async run(): Promise<void> {
     const {flags} = await this.parse(AccountInfo);
     const info = await (await this.getApi()).account.information.get();
+    if (flags['show-secrets']) {
+      process.stderr.write(chalk.yellow('Warning: --show-secrets prints secrets in plaintext. Avoid sharing terminal output, logs, or recordings.\n'));
+    }
+
     const output = flags['show-secrets'] ? info : redact(info);
     await this.outputData(output);
   }

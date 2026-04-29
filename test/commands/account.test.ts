@@ -37,6 +37,18 @@ function captureStdout(): {output: () => string; restore: () => void} {
   };
 }
 
+function captureStderr(): {output: () => string; restore: () => void} {
+  let captured = '';
+  const mock = vi.spyOn(process.stderr, 'write').mockImplementation((chunk: string | Uint8Array) => {
+    captured += typeof chunk === 'string' ? chunk : chunk.toString();
+    return true;
+  });
+  return {
+    output: () => captured,
+    restore: () => mock.mockRestore(),
+  };
+}
+
 describe('account info', () => {
   it('outputs JSON', async () => {
     const cap = captureStdout();
@@ -92,13 +104,16 @@ describe('account info', () => {
 
   it('shows secrets in plaintext when --show-secrets is set', async () => {
     const cap = captureStdout();
+    const err = captureStderr();
     const {default: Cmd} = await import('../../src/commands/account/info.js');
     await Cmd.run(['--json', '--show-secrets']);
     cap.restore();
+    err.restore();
     const data = JSON.parse(cap.output());
     expect(data.apiKeys[0].value).toBe('aaaabbbb-1111-2222-3333-eeeeeeeeffff');
     expect(data.intercomIdVerification).toBe(
       'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
     );
+    expect(err.output()).toContain('Warning: --show-secrets prints secrets in plaintext');
   });
 });
