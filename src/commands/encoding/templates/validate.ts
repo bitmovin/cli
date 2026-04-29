@@ -4,24 +4,29 @@ import {existsSync, mkdirSync, readFileSync, writeFileSync, statSync} from 'node
 import {homedir} from 'node:os';
 import {join} from 'node:path';
 import yaml from 'js-yaml';
-import Ajv from 'ajv';
+import Ajv2020 from 'ajv/dist/2020.js';
 import chalk from 'chalk';
 
 const SCHEMA_URL =
   'https://raw.githubusercontent.com/bitmovin/bitmovin-api-sdk-examples/main/bitmovin-encoding-template.json';
 
-const CACHE_DIR = join(homedir(), '.config', 'bitmovin');
-const CACHE_FILE = join(CACHE_DIR, 'template-schema.json');
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+function getCachePaths(): {dir: string; file: string} {
+  const dir = join(homedir(), '.config', 'bitmovin');
+  return {dir, file: join(dir, 'template-schema.json')};
+}
+
 async function loadSchema(): Promise<object> {
+  const {dir: cacheDir, file: cacheFile} = getCachePaths();
+
   // Check cache first
-  if (existsSync(CACHE_FILE)) {
+  if (existsSync(cacheFile)) {
     try {
-      const stat = statSync(CACHE_FILE);
+      const stat = statSync(cacheFile);
       const age = Date.now() - stat.mtimeMs;
       if (age < CACHE_TTL_MS) {
-        return JSON.parse(readFileSync(CACHE_FILE, 'utf-8')) as object;
+        return JSON.parse(readFileSync(cacheFile, 'utf-8')) as object;
       }
     } catch {
       // Ignore cache read errors, fall through to fetch
@@ -31,8 +36,8 @@ async function loadSchema(): Promise<object> {
   const schemaRes = await fetch(SCHEMA_URL);
   if (!schemaRes.ok) {
     // If fetch fails but we have a stale cache, use it
-    if (existsSync(CACHE_FILE)) {
-      return JSON.parse(readFileSync(CACHE_FILE, 'utf-8')) as object;
+    if (existsSync(cacheFile)) {
+      return JSON.parse(readFileSync(cacheFile, 'utf-8')) as object;
     }
 
     throw new Error(`Failed to fetch schema: ${schemaRes.status}`);
@@ -42,8 +47,8 @@ async function loadSchema(): Promise<object> {
 
   // Cache the schema
   try {
-    mkdirSync(CACHE_DIR, {recursive: true});
-    writeFileSync(CACHE_FILE, JSON.stringify(schema, null, 2));
+    mkdirSync(cacheDir, {recursive: true});
+    writeFileSync(cacheFile, JSON.stringify(schema, null, 2));
   } catch {
     // Ignore cache write errors — validation can still proceed
   }
@@ -74,7 +79,13 @@ export default class EncodingTemplateValidate extends BaseCommand {
     }
 
     const schema = await loadSchema();
-    const ajv = new (Ajv as unknown as typeof Ajv.default)({allErrors: true, strict: false});
+    const ajv = new (Ajv2020 as unknown as typeof Ajv2020.default)({
+      allErrors: true,
+      strict: false,
+      // Suppress "unknown format" noise for OpenAPI-flavored format hints
+      // (e.g. "double", "int32") that aren't part of JSON Schema validation.
+      logger: false,
+    });
     const validate = ajv.compile(schema);
     const valid = validate(doc);
 

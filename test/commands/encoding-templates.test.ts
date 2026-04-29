@@ -1,4 +1,17 @@
 import {describe, it, expect, vi} from 'vitest';
+import {writeFileSync, mkdtempSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+
+// Redirect the validate command's schema cache to a per-test temp dir.
+// Set BM_CLI_TEST_HOME before each validate test below.
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  return {
+    ...actual,
+    homedir: () => process.env.BM_CLI_TEST_HOME ?? actual.homedir(),
+  };
+});
 
 const mockTemplates = [
   {id: 'tmpl-1', name: 'Standard VOD', type: 'VOD', createdAt: '2026-01-01T00:00:00.000Z'},
@@ -93,5 +106,86 @@ describe('encoding templates start', () => {
     expect(startMock).toHaveBeenCalled();
     const arg = startMock.mock.calls[0][0];
     expect(arg).toEqual({id: 'tmpl-1'});
+  });
+});
+
+describe('encoding templates validate', () => {
+  // Minimal schema covering just enough to test that a 2020-12 schema
+  // compiles successfully and required-field violations are reported.
+  const miniSchema = {
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    type: 'object',
+    properties: {
+      metadata: {
+        type: 'object',
+        properties: {
+          name: {type: 'string'},
+          type: {enum: ['VOD', 'LIVE']},
+        },
+        required: ['name', 'type'],
+      },
+      encodings: {type: 'object'},
+    },
+    required: ['metadata', 'encodings'],
+  };
+
+  function setup(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'bm-cli-validate-'));
+    // Empty temp dir → loadSchema's cache check misses → fetch fires.
+    process.env.BM_CLI_TEST_HOME = dir;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => miniSchema,
+      }),
+    );
+    return dir;
+  }
+
+  function captureLogs(): {output: () => string; restore: () => void} {
+    // The CLI's `this.log()` routes through oclif's ux.stdout which uses
+    // console.log, so capturing process.stdout.write is not enough.
+    let captured = '';
+    const append = (parts: unknown[]) => {
+      captured += parts.map((p) => (typeof p === 'string' ? p : String(p))).join(' ') + '\n';
+    };
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => append(args));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation((...args) => append(args));
+    return {
+      output: () => captured,
+      restore: () => {
+        logSpy.mockRestore();
+        errSpy.mockRestore();
+      },
+    };
+  }
+
+  it('reports a valid template', async () => {
+    const dir = setup();
+    const file = join(dir, 'valid.yaml');
+    writeFileSync(file, "metadata:\n  name: t\n  type: VOD\nencodings: {}\n");
+    const cap = captureLogs();
+    const {default: Cmd} = await import('../../src/commands/encoding/templates/validate.js');
+    await Cmd.run([file]);
+    cap.restore();
+    expect(cap.output()).toContain('Template is valid');
+    vi.unstubAllGlobals();
+  });
+
+  it('reports schema violations and exits non-zero', async () => {
+    const dir = setup();
+    const file = join(dir, 'invalid.yaml');
+    writeFileSync(file, "metadata:\n  name: t\n  type: BOGUS\n");
+    const cap = captureLogs();
+    const {default: Cmd} = await import('../../src/commands/encoding/templates/validate.js');
+    await expect(Cmd.run([file])).rejects.toThrow(/EEXIT: 1/);
+    cap.restore();
+    const out = cap.output();
+    expect(out).toContain('Validation errors');
+    expect(out).toContain("required property 'encodings'");
+    expect(out).toContain('/metadata/type');
+    vi.unstubAllGlobals();
   });
 });
