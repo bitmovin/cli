@@ -4,7 +4,7 @@ import {existsSync, mkdirSync, readFileSync, writeFileSync, statSync} from 'node
 import {homedir} from 'node:os';
 import {join} from 'node:path';
 import yaml from 'js-yaml';
-import Ajv2020 from 'ajv/dist/2020.js';
+import {Ajv2020} from 'ajv/dist/2020.js';
 import chalk from 'chalk';
 
 const SCHEMA_URL =
@@ -79,7 +79,7 @@ export default class EncodingTemplateValidate extends BaseCommand {
     }
 
     const schema = await loadSchema();
-    const ajv = new (Ajv2020 as unknown as typeof Ajv2020.default)({
+    const ajv = new Ajv2020({
       allErrors: true,
       strict: false,
       // Suppress "unknown format" noise for OpenAPI-flavored format hints

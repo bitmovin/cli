@@ -1,4 +1,4 @@
-import {describe, it, expect, vi} from 'vitest';
+import {afterEach, describe, it, expect, vi} from 'vitest';
 import {writeFileSync, mkdtempSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -11,6 +11,17 @@ vi.mock('node:os', async (importOriginal) => {
     ...actual,
     homedir: () => process.env.BM_CLI_TEST_HOME ?? actual.homedir(),
   };
+});
+
+const cleanupCallbacks: Array<() => void> = [];
+
+afterEach(() => {
+  for (const cleanup of cleanupCallbacks.splice(0)) {
+    cleanup();
+  }
+
+  vi.unstubAllGlobals();
+  delete process.env.BM_CLI_TEST_HOME;
 });
 
 const mockTemplates = [
@@ -183,12 +194,17 @@ describe('encoding templates validate', () => {
     };
     const logSpy = vi.spyOn(console, 'log').mockImplementation((...args) => append(args));
     const errSpy = vi.spyOn(console, 'error').mockImplementation((...args) => append(args));
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      logSpy.mockRestore();
+      errSpy.mockRestore();
+    };
+    cleanupCallbacks.push(restore);
     return {
       output: () => captured,
-      restore: () => {
-        logSpy.mockRestore();
-        errSpy.mockRestore();
-      },
+      restore,
     };
   }
 
@@ -201,7 +217,6 @@ describe('encoding templates validate', () => {
     await Cmd.run([file]);
     cap.restore();
     expect(cap.output()).toContain('Template is valid');
-    vi.unstubAllGlobals();
   });
 
   it('reports schema violations and exits non-zero', async () => {
@@ -216,7 +231,6 @@ describe('encoding templates validate', () => {
     expect(out).toContain('Validation errors');
     expect(out).toContain("required property 'encodings'");
     expect(out).toContain('/metadata/type');
-    vi.unstubAllGlobals();
   });
 
   it.each([
@@ -264,7 +278,6 @@ describe('encoding templates validate', () => {
     const out = cap.output();
     expect(out).toContain('Validation errors');
     expect(out).toContain(expectedError);
-    vi.unstubAllGlobals();
   });
 
   it('reports invalid YAML syntax before schema validation', async () => {
@@ -273,6 +286,5 @@ describe('encoding templates validate', () => {
     writeFileSync(file, 'metadata:\n  name: [unterminated\n');
     const {default: Cmd} = await import('../../src/commands/encoding/templates/validate.js');
     await expect(Cmd.run([file])).rejects.toThrow('Invalid YAML syntax');
-    vi.unstubAllGlobals();
   });
 });
