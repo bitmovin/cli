@@ -64,7 +64,7 @@ describe('account info', () => {
     cap.restore();
     const data = JSON.parse(cap.output());
     expect(JSON.stringify(data)).not.toContain('aaaabbbb-1111-2222-3333-eeeeeeeeffff');
-    expect(data.apiKeys[0].value).toBe('aaaa…ffff');
+    expect(data.apiKeys[0].value).toBe('aaaa...ffff');
     expect(data.apiKeys[0].id).toBe('key-1');
   });
 
@@ -74,7 +74,7 @@ describe('account info', () => {
     await Cmd.run(['--json']);
     cap.restore();
     const data = JSON.parse(cap.output());
-    expect(data.intercomIdVerification).toBe('abcd…6789');
+    expect(data.intercomIdVerification).toBe('abcd...6789');
     expect(JSON.stringify(data)).not.toContain(
       'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
     );

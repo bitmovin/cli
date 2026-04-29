@@ -15,7 +15,7 @@ interface AccountInfoData {
 
 function maskSecret(secret: string): string {
   if (secret.length <= 8) return '***';
-  return secret.slice(0, 4) + '…' + secret.slice(-4);
+  return secret.slice(0, 4) + '...' + secret.slice(-4);
 }
 
 // Allowlist-style: any new secret-bearing field returned by the API must be
