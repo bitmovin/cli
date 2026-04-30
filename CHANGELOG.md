@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `bitmovin config show` now reports the effective API key source while keeping values masked consistently.
 
+### Fixed
+
+- Fixed encoding template validation for the upstream JSON Schema 2020-12 schema and OpenAPI `double` formats.
+
 ## [0.2.0] - 2026-04-15
 
 ### Added
