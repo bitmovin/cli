@@ -1,5 +1,6 @@
 import BitmovinApiSdk from '@bitmovin/api-sdk';
 import {loadConfig} from './config.js';
+import {resolveApiKey} from './api-key.js';
 
 // The Bitmovin SDK is CJS with `export default class BitmovinApi`.
 // Under NodeNext module resolution, TypeScript treats default imports from CJS
@@ -45,7 +46,7 @@ export function getClient(apiKeyOverride?: string): ApiClient {
  */
 export function resolveAuth(apiKeyOverride?: string): {apiKey: string; tenantOrgId?: string} {
   const config = loadConfig();
-  const apiKey = apiKeyOverride ?? process.env.BITMOVIN_API_KEY ?? config.apiKey;
+  const {value: apiKey} = resolveApiKey(config, apiKeyOverride);
 
   if (!apiKey) {
     throw new Error(

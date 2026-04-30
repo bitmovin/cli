@@ -54,4 +54,18 @@ describe('getClient with BITMOVIN_API_KEY env var', () => {
     getClient();
     expect(lastConstructorArgs.apiKey).toBe('config-file-key');
   });
+
+  it('preserves empty override precedence instead of falling back', async () => {
+    process.env.BITMOVIN_API_KEY = 'env-var-key';
+    const {getClient} = await import('../../src/lib/client.js');
+    expect(() => getClient('')).toThrow('No API key configured');
+    expect(lastConstructorArgs).toBeUndefined();
+  });
+
+  it('preserves empty env var precedence instead of falling back to config', async () => {
+    process.env.BITMOVIN_API_KEY = '';
+    const {getClient} = await import('../../src/lib/client.js');
+    expect(() => getClient()).toThrow('No API key configured');
+    expect(lastConstructorArgs).toBeUndefined();
+  });
 });
