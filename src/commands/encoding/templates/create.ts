@@ -15,10 +15,18 @@ interface CreateResponse {
 interface ErrorResponse {
   developerMessage?: string;
   message?: string;
+  requestId?: string;
   data?: {
     developerMessage?: string;
     message?: string;
+    requestId?: string;
   };
+}
+
+interface ApiError extends Error {
+  httpStatusCode: number;
+  developerMessage: string;
+  requestId?: string;
 }
 
 export default class EncodingTemplateCreate extends BaseCommand {
@@ -57,20 +65,28 @@ export default class EncodingTemplateCreate extends BaseCommand {
     });
 
     if (!response.ok) {
-      let bodyText = await response.text();
+      const rawBodyText = await response.text();
+      let developerMessage = rawBodyText;
+      let requestId = response.headers?.get('X-Request-Id') ?? undefined;
+
       try {
-        const parsed = JSON.parse(bodyText) as ErrorResponse;
-        bodyText =
+        const parsed = JSON.parse(rawBodyText) as ErrorResponse;
+        developerMessage =
           parsed.developerMessage ??
           parsed.message ??
           parsed.data?.developerMessage ??
           parsed.data?.message ??
-          bodyText;
+          rawBodyText;
+        requestId = requestId ?? parsed.requestId ?? parsed.data?.requestId;
       } catch {
-        // leave bodyText as-is
+        // leave developerMessage as raw response body
       }
 
-      this.error(`Failed to create template (${response.status}): ${bodyText}`);
+      const error = new Error(`Failed to create template (${response.status}): ${developerMessage}`) as ApiError;
+      error.httpStatusCode = response.status;
+      error.developerMessage = developerMessage;
+      if (requestId) error.requestId = requestId;
+      throw error;
     }
 
     const json = (await response.json()) as CreateResponse;
