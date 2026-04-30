@@ -1,5 +1,6 @@
 import {BaseCommand} from '../../lib/base-command.js';
 import {loadConfig, getConfigPath} from '../../lib/config.js';
+import {maskSecret} from '../../lib/secrets.js';
 
 export default class ConfigShow extends BaseCommand {
   static override description = 'Show current configuration';
@@ -12,9 +13,7 @@ export default class ConfigShow extends BaseCommand {
     const config = loadConfig();
 
     if (await this.isJsonMode()) {
-      const masked = config.apiKey
-        ? config.apiKey.slice(0, 8) + '...' + config.apiKey.slice(-4)
-        : undefined;
+      const masked = config.apiKey ? maskSecret(config.apiKey) : undefined;
       await this.outputData({
         configFile: getConfigPath(),
         apiKey: masked ?? '(not set)',
@@ -27,7 +26,7 @@ export default class ConfigShow extends BaseCommand {
     this.log(`Config file: ${getConfigPath()}\n`);
 
     if (config.apiKey) {
-      const masked = config.apiKey.slice(0, 8) + '...' + config.apiKey.slice(-4);
+      const masked = maskSecret(config.apiKey);
       this.log(`API Key:        ${masked}`);
     } else {
       this.log('API Key:        (not set)');
