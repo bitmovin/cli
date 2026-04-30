@@ -121,6 +121,7 @@ describe('encoding templates delete', () => {
 describe('encoding templates create', () => {
   function setupCreate(): {dir: string; fetchMock: ReturnType<typeof vi.fn>} {
     const dir = mkdtempSync(join(tmpdir(), 'bm-cli-create-'));
+    cleanupCallbacks.push(() => rmSync(dir, {recursive: true, force: true}));
     process.env.BITMOVIN_API_KEY = 'test-key-create';
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -136,10 +137,10 @@ describe('encoding templates create', () => {
     const file = join(dir, 't.yaml');
     const yamlBody = "metadata:\n  name: Test\n  type: LIVE\nencodings: {}\n";
     writeFileSync(file, yamlBody);
-    const cap = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const cap = captureStdout();
     const {default: Cmd} = await import('../../src/commands/encoding/templates/create.js');
     await Cmd.run([file]);
-    cap.mockRestore();
+    cap.restore();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://api.bitmovin.com/v1/encoding/templates');
@@ -170,22 +171,22 @@ describe('encoding templates create', () => {
 
   it('surfaces API error message on failure', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'bm-cli-create-'));
+    cleanupCallbacks.push(() => rmSync(dir, {recursive: true, force: true}));
     process.env.BITMOVIN_API_KEY = 'test-key-create';
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: false,
         status: 400,
-        text: async () =>
-          JSON.stringify({data: {developerMessage: 'Could not parse encoding template'}}),
+        text: async () => JSON.stringify({developerMessage: 'Could not parse encoding template'}),
       }),
     );
     const file = join(dir, 'bad.yaml');
     writeFileSync(file, 'metadata:\n  type: LIVE\n');
-    const cap = vi.spyOn(console, 'error').mockImplementation(() => {});
     const {default: Cmd} = await import('../../src/commands/encoding/templates/create.js');
-    await expect(Cmd.run([file])).rejects.toThrow(/EEXIT: 1|Could not parse encoding template/);
-    cap.mockRestore();
+    await expect(Cmd.run([file])).rejects.toThrow(
+      'Failed to create template (400): Could not parse encoding template',
+    );
     vi.unstubAllGlobals();
     delete process.env.BITMOVIN_API_KEY;
   });

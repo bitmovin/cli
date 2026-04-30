@@ -12,6 +12,15 @@ interface CreateResponse {
   };
 }
 
+interface ErrorResponse {
+  developerMessage?: string;
+  message?: string;
+  data?: {
+    developerMessage?: string;
+    message?: string;
+  };
+}
+
 export default class EncodingTemplateCreate extends BaseCommand {
   static override description =
     'Store an encoding template for reuse. The template name is taken from `metadata.name` in the YAML.';
@@ -50,8 +59,13 @@ export default class EncodingTemplateCreate extends BaseCommand {
     if (!response.ok) {
       let bodyText = await response.text();
       try {
-        const parsed = JSON.parse(bodyText) as {data?: {message?: string; developerMessage?: string}};
-        bodyText = parsed.data?.developerMessage ?? parsed.data?.message ?? bodyText;
+        const parsed = JSON.parse(bodyText) as ErrorResponse;
+        bodyText =
+          parsed.developerMessage ??
+          parsed.message ??
+          parsed.data?.developerMessage ??
+          parsed.data?.message ??
+          bodyText;
       } catch {
         // leave bodyText as-is
       }
