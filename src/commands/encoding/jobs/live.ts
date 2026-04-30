@@ -13,7 +13,7 @@ interface LiveDetails {
 interface ApiError extends Error {
   httpStatusCode?: number;
   developerMessage?: string;
-  errorCode?: string;
+  errorCode?: string | number;
 }
 
 function isLiveDetailsUnavailable(err: unknown): err is ApiError {
@@ -22,7 +22,7 @@ function isLiveDetailsUnavailable(err: unknown): err is ApiError {
   const apiError = err as ApiError;
   if (apiError.httpStatusCode !== 400) return false;
 
-  const errorCode = apiError.errorCode?.toLowerCase();
+  const errorCode = apiError.errorCode === undefined ? undefined : String(apiError.errorCode).toLowerCase();
   if (errorCode && errorCode.includes('live') && errorCode.includes('not') && errorCode.includes('available')) {
     return true;
   }
