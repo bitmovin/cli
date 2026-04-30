@@ -17,10 +17,14 @@ const mockApi = {
       delete: async () => ({}),
       live: {
         get: async (id: string) => {
-          if (id === 'enc-queued') {
-            const err = new Error(`Details for live encoding with id '${id}' are not available at the moment.`) as Error & {httpStatusCode: number; developerMessage: string};
+          if (id === 'enc-queued' || id === 'enc-unavailable') {
+            const message = id === 'enc-unavailable'
+              ? `Live details for encoding '${id}' are unavailable.`
+              : `Details for live encoding with id '${id}' are not available at the moment.`;
+            const err = new Error(message) as Error & {httpStatusCode: number; developerMessage: string; errorCode?: string};
             err.httpStatusCode = 400;
             err.developerMessage = err.message;
+            if (id === 'enc-unavailable') err.errorCode = 'LIVE_ENCODING_DETAILS_UNAVAILABLE';
             throw err;
           }
 
@@ -138,11 +142,11 @@ describe('encoding job live', () => {
     await Cmd.run(['enc-3']);
     cap.restore();
     const out = cap.output();
-    expect(out).toContain('Encoder IP:');
+    expect(out).toContain('encoderIp');
     expect(out).toContain('192.0.2.10');
-    expect(out).toContain('Stream Key:');
+    expect(out).toContain('streamKey');
     expect(out).toContain('demo-key');
-    expect(out).toContain('Application:');
+    expect(out).toContain('application');
     expect(out).toContain('live');
   });
 
@@ -165,14 +169,21 @@ describe('encoding job live', () => {
     expect(data.application).toBe('live');
   });
 
+  it('supports --fields filtering', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-3', '--fields', 'encoderIp']);
+    cap.restore();
+    expect(JSON.parse(cap.output())).toEqual({encoderIp: '192.0.2.10'});
+  });
+
   it('handles queued live encodings whose details are not available yet', async () => {
     const cap = captureStdout();
     const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
     await Cmd.run(['enc-queued']);
     cap.restore();
     const out = cap.output();
-    expect(out).toContain('Live encoding details are not available yet');
-    expect(out).toContain('Encoder IP:');
+    expect(out).toContain('encoderIp');
     expect(out).toContain('(not yet running)');
   });
 
@@ -184,5 +195,13 @@ describe('encoding job live', () => {
     const data = JSON.parse(cap.output());
     expect(data.available).toBe(false);
     expect(data.message).toContain('not available yet');
+  });
+
+  it('handles unavailable live details with alternate API wording', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-unavailable']);
+    cap.restore();
+    expect(cap.output()).toContain('(not yet running)');
   });
 });

@@ -1,19 +1,28 @@
 import {Args} from '@oclif/core';
+import {LiveEncoding} from '@bitmovin/api-sdk';
 import {BaseCommand} from '../../../lib/base-command.js';
 
-interface LiveDetails {
-  encoderIp?: string;
-  streamKey?: string;
-  application?: string;
+type LiveDetails = LiveEncoding & {
   available?: boolean;
   message?: string;
-  [key: string]: unknown;
-}
+};
+
+type LiveDetailsOutput = LiveDetails & Record<string, unknown>;
 
 interface ApiError extends Error {
   httpStatusCode?: number;
   developerMessage?: string;
   errorCode?: string | number;
+}
+
+function normalizeErrorText(value: unknown): string {
+  return String(value ?? '').toLowerCase().replace(/[_-]+/g, ' ');
+}
+
+function mentionsUnavailableLiveDetails(value: string): boolean {
+  const mentionsUnavailable = /\b(?:unavailable|not\s+(?:yet\s+)?available)\b/.test(value);
+  const mentionsLiveDetails = value.includes('live encoding') || value.includes('live details') || (value.includes('live') && value.includes('details'));
+  return mentionsUnavailable && mentionsLiveDetails;
 }
 
 function isLiveDetailsUnavailable(err: unknown): err is ApiError {
@@ -22,13 +31,7 @@ function isLiveDetailsUnavailable(err: unknown): err is ApiError {
   const apiError = err as ApiError;
   if (apiError.httpStatusCode !== 400) return false;
 
-  const errorCode = apiError.errorCode === undefined ? undefined : String(apiError.errorCode).toLowerCase();
-  if (errorCode && errorCode.includes('live') && errorCode.includes('not') && errorCode.includes('available')) {
-    return true;
-  }
-
-  const message = (apiError.developerMessage ?? apiError.message ?? '').toLowerCase();
-  return message.includes('not available') && (message.includes('live encoding') || message.includes('live details'));
+  return mentionsUnavailableLiveDetails(normalizeErrorText(apiError.errorCode)) || mentionsUnavailableLiveDetails(normalizeErrorText(apiError.developerMessage ?? apiError.message));
 }
 
 export default class EncodingJobLive extends BaseCommand {
@@ -53,7 +56,7 @@ export default class EncodingJobLive extends BaseCommand {
 
     try {
       const api = await this.getApi();
-      live = (await api.encoding.encodings.live.get(args.id)) as LiveDetails;
+      live = await api.encoding.encodings.live.get(args.id);
     } catch (err) {
       if (!isLiveDetailsUnavailable(err)) throw err;
 
@@ -63,17 +66,19 @@ export default class EncodingJobLive extends BaseCommand {
       };
     }
 
-    if (await this.isJsonMode()) {
-      await this.outputData(live);
-      return;
+    const jsonMode = await this.isJsonMode();
+    if (live.available === false && live.message) {
+      this.log(live.message);
     }
 
-    const out = process.stdout;
-    if (live.available === false && live.message) {
-      out.write(`${live.message}\n`);
-    }
-    out.write(`Encoder IP:   ${live.encoderIp ?? '(not yet running)'}\n`);
-    out.write(`Stream Key:   ${live.streamKey ?? '(unknown)'}\n`);
-    out.write(`Application:  ${live.application ?? '(unknown)'}\n`);
+    const output: LiveDetailsOutput = {
+      encoderIp: live.encoderIp ?? '(not yet running)',
+      streamKey: live.streamKey ?? '(unknown)',
+      application: live.application ?? '(unknown)',
+      ...(jsonMode && live.available !== undefined && {available: live.available}),
+      ...(jsonMode && live.message && {message: live.message}),
+    };
+
+    await this.outputData(output);
   }
 }
