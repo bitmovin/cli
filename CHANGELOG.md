@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **BREAKING:** `bitmovin account info --json` now masks API key values and other secrets by default. Consumers that need plaintext secrets must opt in with `--show-secrets`.
 
+### Fixed
+
+- Fixed encoding template validation for the upstream JSON Schema 2020-12 schema and OpenAPI `double` formats.
+
 ## [0.2.0] - 2026-04-15
 
 ### Added
