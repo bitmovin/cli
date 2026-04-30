@@ -83,7 +83,7 @@ describe('config show', () => {
     const {default: Cmd} = await import('../../src/commands/config/show.js');
     await Cmd.run([]);
     cap.restore();
-    expect(cap.output()).toContain('12345678...');
+    expect(cap.output()).toContain('1234...9abc');
     expect(cap.output()).not.toContain('12345678-abcd-1234-abcd-123456789abc');
   });
 });
