@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CI workflow that builds standalone tarballs (macOS, Linux, Windows) via `oclif pack` and uploads them as workflow artifacts. Publishing to GitHub Releases and npm will follow in a subsequent change.
+
 ### Changed
 
 - **BREAKING:** `bitmovin account info --json` now masks API key values and other secrets by default. Consumers that need plaintext secrets must opt in with `--show-secrets`.

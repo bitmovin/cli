@@ -37,7 +37,7 @@
     "dist"
   ],
   "scripts": {
-    "prepare": "tsc -b",
+    "prepare": "if [ -x ./node_modules/.bin/tsc ]; then tsc -b; fi",
     "build": "tsc -b",
     "dev": "tsc -b --watch",
     "test": "vitest run",
