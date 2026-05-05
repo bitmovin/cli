@@ -254,6 +254,18 @@ describe('encoding job live', () => {
     const data = JSON.parse(cap.output());
     expect(data.available).toBe(false);
     expect(data.message).toContain('not available yet');
+    expect(data.encoderIp).toBeNull();
+    expect(data.application).toBeNull();
+  });
+
+  it('emits null encoderIp/application in --json when the encoder has not started', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-1', '--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.encoderIp).toBeNull();
+    expect(data.application).toBe('live');
   });
 
   it('handles unavailable live details with alternate API wording', async () => {

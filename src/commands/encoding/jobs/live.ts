@@ -30,7 +30,10 @@ type LiveDetails = LiveEncoding & {
   message?: string;
 };
 
-type LiveDetailsOutput = LiveDetails & Record<string, unknown>;
+type LiveDetailsOutput = Omit<LiveDetails, 'encoderIp' | 'application'> & {
+  encoderIp: string | null;
+  application: string | null;
+} & Record<string, unknown>;
 
 function normalizeErrorText(value: unknown): string {
   return String(value ?? '').toLowerCase().replace(/[_-]+/g, ' ');
@@ -141,14 +144,21 @@ export default class EncodingJobLive extends BaseCommand {
       mappedStreamKeys.push({value: live.streamKey});
     }
 
-    const output: LiveDetailsOutput = {
-      encoderIp: live?.encoderIp ?? '(not yet running)',
-      application: live?.application ?? '(unknown)',
-      streamKeys: mappedStreamKeys,
-      srtInputs,
-      ...(jsonMode && {available}),
-      ...(jsonMode && message && {message}),
-    };
+    const output: LiveDetailsOutput = jsonMode
+      ? {
+          encoderIp: live?.encoderIp ?? null,
+          application: live?.application ?? null,
+          streamKeys: mappedStreamKeys,
+          srtInputs,
+          available,
+          ...(message && {message}),
+        }
+      : {
+          encoderIp: live?.encoderIp ?? '(not yet running)',
+          application: live?.application ?? '(unknown)',
+          streamKeys: mappedStreamKeys,
+          srtInputs,
+        };
 
     await this.outputData(output);
   }
