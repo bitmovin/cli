@@ -77,7 +77,8 @@
     "bin": "bitmovin",
     "dirname": "bitmovin",
     "macos": {
-      "identifier": "com.bitmovin.cli"
+      "identifier": "com.bitmovin.cli",
+      "sign": "Developer ID Installer: bitmovin GmbH (7UXPEM3WRB)"
     },
     "plugins": [
       "@oclif/plugin-autocomplete"

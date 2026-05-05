@@ -45,9 +45,26 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx oclif manifest
+      - name: Import Developer ID Installer cert into temp keychain
+        env:
+          INSTALLER_CERT_P12_BASE64: ${{ secrets.APPLE_INSTALLER_CERT_P12_BASE64 }}
+          INSTALLER_CERT_PASSWORD: ${{ secrets.APPLE_INSTALLER_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
+          P12_PATH="$RUNNER_TEMP/installer.p12"
+          echo "$INSTALLER_CERT_P12_BASE64" | base64 --decode > "$P12_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$P12_PATH" -k "$KEYCHAIN_PATH" -P "$INSTALLER_CERT_PASSWORD" -T /usr/bin/productsign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+          rm -f "$P12_PATH"
+          security find-identity -v -p basic "$KEYCHAIN_PATH"
       - name: Pack tarballs (darwin targets, needed by pack:macos)
         run: npx oclif pack tarballs --targets=darwin-x64,darwin-arm64
-      - name: Pack macOS .pkg
+      - name: Pack macOS .pkg (signed with Developer ID Installer)
         run: npx oclif pack macos
       - name: Upload macOS .pkg installers
         uses: actions/upload-artifact@v4
