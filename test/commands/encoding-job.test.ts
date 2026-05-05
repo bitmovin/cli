@@ -14,6 +14,11 @@ const streamsByEncoding: Record<string, StreamFixture[]> = {
   'enc-3': [{inputStreams: [{inputId: 'rtmp-input'}]}],
   'enc-redundant': [{inputStreams: [{inputId: 'redundant-rtmp-input'}]}],
   'enc-srt': [{inputStreams: [{inputId: 'srt-input-1'}]}],
+  'enc-srt-mixed': [
+    {inputStreams: [{inputId: 'srt-input-1'}]},
+    {inputStreams: [{inputId: 'srt-input-broken'}]},
+    {inputStreams: [{inputId: 'srt-input-2'}]},
+  ],
 };
 const streamKeysByEncoding: Record<string, StreamKeyFixture[]> = {
   'enc-3': [{value: 'demo-key', status: 'ASSIGNED'}],
@@ -26,9 +31,12 @@ const inputTypeById: Record<string, string> = {
   'rtmp-input': 'RTMP',
   'redundant-rtmp-input': 'REDUNDANT_RTMP',
   'srt-input-1': 'SRT',
+  'srt-input-2': 'SRT',
+  'srt-input-broken': 'SRT',
 };
 const srtInputsById: Record<string, SrtFixture> = {
   'srt-input-1': {mode: 'LISTENER', port: 2088, path: '/live'},
+  'srt-input-2': {mode: 'CALLER', host: 'srt.example.com', port: 9000, path: '/backup'},
 };
 
 const mockApi = {
@@ -64,7 +72,7 @@ const mockApi = {
             throw err;
           }
 
-          if (id === 'enc-srt') {
+          if (id === 'enc-srt' || id === 'enc-srt-mixed') {
             return {encoderIp: '192.0.2.20', application: 'live'};
           }
 
@@ -104,7 +112,15 @@ const mockApi = {
         get: async (inputId: string) => ({type: inputTypeById[inputId]}),
       },
       srt: {
-        get: async (inputId: string) => srtInputsById[inputId],
+        get: async (inputId: string) => {
+          if (inputId === 'srt-input-broken') {
+            const err = new Error('not found') as Error & {httpStatusCode?: number; developerMessage?: string};
+            err.httpStatusCode = 404;
+            err.developerMessage = 'not found';
+            throw err;
+          }
+          return srtInputsById[inputId];
+        },
       },
     },
   },
@@ -257,6 +273,38 @@ describe('encoding job live', () => {
     expect(cap.output()).toContain('(not yet running)');
   });
 
+  it('renders a friendly summary in non-JSON mode', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-3']);
+    cap.restore();
+    const out = cap.output();
+    expect(out).toMatch(/Encoder IP:\s+192\.0\.2\.10/);
+    expect(out).toMatch(/Application:\s+live/);
+    expect(out).toMatch(/Stream Key:\s+demo-key/);
+  });
+
+  it('renders a Stream Keys list for redundant RTMP', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-redundant']);
+    cap.restore();
+    const out = cap.output();
+    expect(out).toContain('Stream Keys:');
+    expect(out).toContain('- primary-key (ingest ip-primary, ASSIGNED)');
+    expect(out).toContain('- backup-key (ingest ip-backup, ASSIGNED)');
+  });
+
+  it('renders an SRT Inputs section for SRT encodings', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-srt']);
+    cap.restore();
+    const out = cap.output();
+    expect(out).toContain('SRT Inputs:');
+    expect(out).toContain('LISTENER :2088/live (input srt-input-1)');
+  });
+
   it('supports --fields filtering', async () => {
     const cap = captureStdout();
     const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
@@ -292,7 +340,7 @@ describe('encoding job live', () => {
     await Cmd.run(['enc-queued']);
     cap.restore();
     const out = cap.output();
-    expect(out).toContain('encoderIp');
+    expect(out).toContain('Encoder IP:');
     expect(out).toContain('(not yet running)');
   });
 
@@ -338,6 +386,21 @@ describe('encoding job live', () => {
     expect(data.streamKeys).toEqual([]);
     expect(stderr.output()).toMatch(/stream keys/i);
     expect(stderr.output()).toMatch(/403/);
+  });
+
+  it('returns valid SRT inputs when only one of several fails', async () => {
+    const stdout = captureStdout();
+    const stderr = captureStderr();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-srt-mixed', '--json']);
+    stdout.restore();
+    stderr.restore();
+    const data = JSON.parse(stdout.output());
+    const inputIds = data.srtInputs.map((i: {inputId: string}) => i.inputId);
+    expect(inputIds).toEqual(expect.arrayContaining(['srt-input-1', 'srt-input-2']));
+    expect(inputIds).not.toContain('srt-input-broken');
+    expect(stderr.output()).toMatch(/srt-input-broken/);
+    expect(stderr.output()).toMatch(/404/);
   });
 
   it('still surfaces the encoder IP when SRT input walk fails', async () => {

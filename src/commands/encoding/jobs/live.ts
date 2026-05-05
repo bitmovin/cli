@@ -91,17 +91,24 @@ async function fetchAssignedStreamKeys(api: ApiClient, encodingId: string): Prom
 }
 
 async function fetchSrtInputs(api: ApiClient, encodingId: string): Promise<FetchResult<SrtInputOutput[]>> {
+  let inputIds: string[];
   try {
     const streams = await api.encoding.encodings.streams.list(encodingId);
-    const inputIds = new Set<string>();
+    const seen = new Set<string>();
     for (const stream of streams.items ?? []) {
       for (const inputStream of stream.inputStreams ?? []) {
-        if (inputStream.inputId) inputIds.add(inputStream.inputId);
+        if (inputStream.inputId) seen.add(inputStream.inputId);
       }
     }
+    inputIds = [...seen];
+  } catch (err) {
+    return {value: [], error: asError(err)};
+  }
 
-    const results = await Promise.all(
-      [...inputIds].map(async (inputId): Promise<SrtInputOutput | undefined> => {
+  const perInputFailures: string[] = [];
+  const results = await Promise.all(
+    inputIds.map(async (inputId): Promise<SrtInputOutput | undefined> => {
+      try {
         const typeResponse = await api.encoding.inputs.type.get(inputId);
         if (typeResponse.type !== InputType.SRT) return undefined;
 
@@ -113,13 +120,17 @@ async function fetchSrtInputs(api: ApiClient, encodingId: string): Promise<Fetch
           port: srt.port,
           path: srt.path,
         };
-      }),
-    );
+      } catch (err) {
+        perInputFailures.push(`input ${inputId}: ${describeApiError(asError(err))}`);
+        return undefined;
+      }
+    }),
+  );
 
-    return {value: results.filter((r): r is SrtInputOutput => r !== undefined)};
-  } catch (err) {
-    return {value: [], error: asError(err)};
-  }
+  const value = results.filter((r): r is SrtInputOutput => r !== undefined);
+  if (perInputFailures.length === 0) return {value};
+
+  return {value, error: new Error(perInputFailures.join('; '))};
 }
 
 export default class EncodingJobLive extends BaseCommand {
@@ -179,24 +190,61 @@ export default class EncodingJobLive extends BaseCommand {
     // `streamKeys[]` for the per-ingest-point keys.
     const primaryStreamKey = mappedStreamKeys[0]?.value ?? null;
 
-    const output: LiveDetailsOutput = jsonMode
-      ? {
-          encoderIp: live?.encoderIp ?? null,
-          application: live?.application ?? null,
-          streamKey: primaryStreamKey,
-          streamKeys: mappedStreamKeys,
-          srtInputs: srtInputsResult.value,
-          available,
-          ...(message && {message}),
-        }
-      : {
-          encoderIp: live?.encoderIp ?? '(not yet running)',
-          application: live?.application ?? '(unknown)',
-          streamKey: primaryStreamKey ?? '(unknown)',
-          streamKeys: mappedStreamKeys,
-          srtInputs: srtInputsResult.value,
-        };
+    if (jsonMode) {
+      const output: LiveDetailsOutput = {
+        encoderIp: live?.encoderIp ?? null,
+        application: live?.application ?? null,
+        streamKey: primaryStreamKey,
+        streamKeys: mappedStreamKeys,
+        srtInputs: srtInputsResult.value,
+        available,
+        ...(message && {message}),
+      };
+      await this.outputData(output);
+      return;
+    }
 
-    await this.outputData(output);
+    this.printHumanReadable({
+      encoderIp: live?.encoderIp,
+      application: live?.application,
+      streamKey: primaryStreamKey,
+      streamKeys: mappedStreamKeys,
+      srtInputs: srtInputsResult.value,
+    });
+  }
+
+  private printHumanReadable(details: {
+    encoderIp?: string;
+    application?: string;
+    streamKey: string | null;
+    streamKeys: StreamKeyOutput[];
+    srtInputs: SrtInputOutput[];
+  }): void {
+    const out = process.stdout;
+    out.write(`Encoder IP:   ${details.encoderIp ?? '(not yet running)'}\n`);
+    out.write(`Application:  ${details.application ?? '(unknown)'}\n`);
+
+    if (details.streamKeys.length <= 1) {
+      out.write(`Stream Key:   ${details.streamKey ?? '(unknown)'}\n`);
+    } else {
+      out.write('\nStream Keys:\n');
+      for (const key of details.streamKeys) {
+        const meta: string[] = [];
+        if (key.ingestPointId) meta.push(`ingest ${key.ingestPointId}`);
+        if (key.status) meta.push(key.status);
+        const suffix = meta.length ? ` (${meta.join(', ')})` : '';
+        out.write(`  - ${key.value ?? '(unknown)'}${suffix}\n`);
+      }
+    }
+
+    if (details.srtInputs.length > 0) {
+      out.write('\nSRT Inputs:\n');
+      for (const srt of details.srtInputs) {
+        const host = srt.host ?? '';
+        const port = srt.port !== undefined ? `:${srt.port}` : '';
+        const path = srt.path ?? '';
+        out.write(`  - ${srt.mode ?? '(unknown)'} ${host}${port}${path} (input ${srt.inputId})\n`);
+      }
+    }
   }
 }
