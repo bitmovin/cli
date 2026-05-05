@@ -236,6 +236,17 @@ describe('encoding job live', () => {
     expect(data.application).toBe('live');
     expect(data.streamKeys).toHaveLength(1);
     expect(data.streamKeys[0].value).toBe('demo-key');
+    // Backwards-compat alias for scripts that read the previous singular field.
+    expect(data.streamKey).toBe('demo-key');
+  });
+
+  it('exposes the first stream key as a backwards-compat alias for redundant RTMP', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-redundant', '--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.streamKey).toBe('primary-key');
   });
 
   it('shows "(not yet running)" when encoderIp is unset', async () => {

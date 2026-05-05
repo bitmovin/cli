@@ -30,9 +30,10 @@ type LiveDetails = LiveEncoding & {
   message?: string;
 };
 
-type LiveDetailsOutput = Omit<LiveDetails, 'encoderIp' | 'application'> & {
+type LiveDetailsOutput = Omit<LiveDetails, 'encoderIp' | 'application' | 'streamKey'> & {
   encoderIp: string | null;
   application: string | null;
+  streamKey: string | null;
 } & Record<string, unknown>;
 
 function normalizeErrorText(value: unknown): string {
@@ -171,10 +172,18 @@ export default class EncodingJobLive extends BaseCommand {
       mappedStreamKeys.push({value: live.streamKey});
     }
 
+    // Backwards-compat alias: earlier versions of this command exposed a singular
+    // `streamKey` field. We now report every assigned key in `streamKeys[]`, but
+    // keep the singular alias populated with the first value so scripts that read
+    // `data.streamKey` directly keep working. Redundant RTMP setups should consult
+    // `streamKeys[]` for the per-ingest-point keys.
+    const primaryStreamKey = mappedStreamKeys[0]?.value ?? null;
+
     const output: LiveDetailsOutput = jsonMode
       ? {
           encoderIp: live?.encoderIp ?? null,
           application: live?.application ?? null,
+          streamKey: primaryStreamKey,
           streamKeys: mappedStreamKeys,
           srtInputs: srtInputsResult.value,
           available,
@@ -183,6 +192,7 @@ export default class EncodingJobLive extends BaseCommand {
       : {
           encoderIp: live?.encoderIp ?? '(not yet running)',
           application: live?.application ?? '(unknown)',
+          streamKey: primaryStreamKey ?? '(unknown)',
           streamKeys: mappedStreamKeys,
           srtInputs: srtInputsResult.value,
         };

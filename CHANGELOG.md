@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `bitmovin encoding jobs live <id>` to show live encoding connection details, with JSON output support. Surfaces every assigned stream key (including the per-static-ingest-point keys used by redundant RTMP) and the SRT mode/host/port/path for SRT inputs.
 
+  JSON shape note for anyone tracking the unreleased branch: the `--json` output now reports `streamKeys: [{value, ingestPointId, status}]` instead of the singular `streamKey` field that earlier iterations exposed. A `streamKey` alias is still emitted (equal to `streamKeys[0]?.value`) for one-off scripts; redundant RTMP setups should read `streamKeys[]` to get every per-ingest-point key.
+
 ### Changed
 
 - **BREAKING:** `bitmovin account info --json` now masks API key values and other secrets by default. Consumers that need plaintext secrets must opt in with `--show-secrets`.
