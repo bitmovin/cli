@@ -41,7 +41,15 @@ const mockApi = {
       stop: async () => ({}),
       delete: async () => ({}),
       streams: {
-        list: async (id: string) => ({items: streamsByEncoding[id] ?? []}),
+        list: async (id: string) => {
+          if (id === 'enc-srt-fail') {
+            const err = new Error('upstream timeout') as Error & {httpStatusCode?: number; developerMessage?: string};
+            err.httpStatusCode = 503;
+            err.developerMessage = 'upstream timeout';
+            throw err;
+          }
+          return {items: streamsByEncoding[id] ?? []};
+        },
       },
       live: {
         get: async (id: string) => {
@@ -64,6 +72,10 @@ const mockApi = {
             return {encoderIp: '192.0.2.30', application: 'live'};
           }
 
+          if (id === 'enc-streamkeys-fail' || id === 'enc-srt-fail') {
+            return {encoderIp: '192.0.2.40', application: 'live'};
+          }
+
           return {
             encoderIp: id === 'enc-3' ? '192.0.2.10' : undefined,
             streamKey: 'demo-key',
@@ -74,9 +86,17 @@ const mockApi = {
     },
     live: {
       streamKeys: {
-        list: async (params: {assignedEncodingId?: string} = {}) => ({
-          items: params.assignedEncodingId ? streamKeysByEncoding[params.assignedEncodingId] ?? [] : [],
-        }),
+        list: async (params: {assignedEncodingId?: string} = {}) => {
+          if (params.assignedEncodingId === 'enc-streamkeys-fail') {
+            const err = new Error('forbidden') as Error & {httpStatusCode?: number; developerMessage?: string};
+            err.httpStatusCode = 403;
+            err.developerMessage = 'forbidden';
+            throw err;
+          }
+          return {
+            items: params.assignedEncodingId ? streamKeysByEncoding[params.assignedEncodingId] ?? [] : [],
+          };
+        },
       },
     },
     inputs: {
@@ -106,6 +126,25 @@ function captureStdout(): {output: () => string; restore: () => void} {
   return {
     output: () => captured,
     restore: () => mock.mockRestore(),
+  };
+}
+
+function captureStderr(): {output: () => string; restore: () => void} {
+  let captured = '';
+  const writeMock = vi.spyOn(process.stderr, 'write').mockImplementation((chunk: any) => {
+    captured += typeof chunk === 'string' ? chunk : chunk.toString();
+    return true;
+  });
+  // oclif's `this.warn()` routes through `console.error`, not `process.stderr.write`.
+  const errorMock = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+    captured += args.map((a) => (typeof a === 'string' ? a : String(a))).join(' ') + '\n';
+  });
+  return {
+    output: () => captured,
+    restore: () => {
+      writeMock.mockRestore();
+      errorMock.mockRestore();
+    },
   };
 }
 
@@ -274,5 +313,33 @@ describe('encoding job live', () => {
     await Cmd.run(['enc-unavailable']);
     cap.restore();
     expect(cap.output()).toContain('(not yet running)');
+  });
+
+  it('still surfaces the encoder IP when stream keys fetch fails', async () => {
+    const stdout = captureStdout();
+    const stderr = captureStderr();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-streamkeys-fail', '--json']);
+    stdout.restore();
+    stderr.restore();
+    const data = JSON.parse(stdout.output());
+    expect(data.encoderIp).toBe('192.0.2.40');
+    expect(data.streamKeys).toEqual([]);
+    expect(stderr.output()).toMatch(/stream keys/i);
+    expect(stderr.output()).toMatch(/403/);
+  });
+
+  it('still surfaces the encoder IP when SRT input walk fails', async () => {
+    const stdout = captureStdout();
+    const stderr = captureStderr();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-srt-fail', '--json']);
+    stdout.restore();
+    stderr.restore();
+    const data = JSON.parse(stdout.output());
+    expect(data.encoderIp).toBe('192.0.2.40');
+    expect(data.srtInputs).toEqual([]);
+    expect(stderr.output()).toMatch(/SRT input/i);
+    expect(stderr.output()).toMatch(/503/);
   });
 });

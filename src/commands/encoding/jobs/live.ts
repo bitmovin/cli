@@ -68,37 +68,57 @@ async function fetchLiveDetails(api: ApiClient, encodingId: string): Promise<{li
   }
 }
 
-async function fetchAssignedStreamKeys(api: ApiClient, encodingId: string): Promise<StreamKey[]> {
-  const response = await api.encoding.live.streamKeys.list({assignedEncodingId: encodingId});
-  return response.items ?? [];
+type FetchResult<T> = {value: T; error?: Error};
+
+function asError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
 }
 
-async function fetchSrtInputs(api: ApiClient, encodingId: string): Promise<SrtInputOutput[]> {
-  const streams = await api.encoding.encodings.streams.list(encodingId);
-  const inputIds = new Set<string>();
-  for (const stream of streams.items ?? []) {
-    for (const inputStream of stream.inputStreams ?? []) {
-      if (inputStream.inputId) inputIds.add(inputStream.inputId);
-    }
+function describeApiError(err: Error): string {
+  const apiError = err as ApiError;
+  const detail = apiError.developerMessage ?? err.message;
+  return apiError.httpStatusCode ? `${apiError.httpStatusCode} ${detail}` : detail;
+}
+
+async function fetchAssignedStreamKeys(api: ApiClient, encodingId: string): Promise<FetchResult<StreamKey[]>> {
+  try {
+    const response = await api.encoding.live.streamKeys.list({assignedEncodingId: encodingId});
+    return {value: response.items ?? []};
+  } catch (err) {
+    return {value: [], error: asError(err)};
   }
+}
 
-  const results = await Promise.all(
-    [...inputIds].map(async (inputId): Promise<SrtInputOutput | undefined> => {
-      const typeResponse = await api.encoding.inputs.type.get(inputId);
-      if (typeResponse.type !== InputType.SRT) return undefined;
+async function fetchSrtInputs(api: ApiClient, encodingId: string): Promise<FetchResult<SrtInputOutput[]>> {
+  try {
+    const streams = await api.encoding.encodings.streams.list(encodingId);
+    const inputIds = new Set<string>();
+    for (const stream of streams.items ?? []) {
+      for (const inputStream of stream.inputStreams ?? []) {
+        if (inputStream.inputId) inputIds.add(inputStream.inputId);
+      }
+    }
 
-      const srt: SrtInput = await api.encoding.inputs.srt.get(inputId);
-      return {
-        inputId,
-        mode: srt.mode,
-        host: srt.host,
-        port: srt.port,
-        path: srt.path,
-      };
-    }),
-  );
+    const results = await Promise.all(
+      [...inputIds].map(async (inputId): Promise<SrtInputOutput | undefined> => {
+        const typeResponse = await api.encoding.inputs.type.get(inputId);
+        if (typeResponse.type !== InputType.SRT) return undefined;
 
-  return results.filter((r): r is SrtInputOutput => r !== undefined);
+        const srt: SrtInput = await api.encoding.inputs.srt.get(inputId);
+        return {
+          inputId,
+          mode: srt.mode,
+          host: srt.host,
+          port: srt.port,
+          path: srt.path,
+        };
+      }),
+    );
+
+    return {value: results.filter((r): r is SrtInputOutput => r !== undefined)};
+  } catch (err) {
+    return {value: [], error: asError(err)};
+  }
 }
 
 export default class EncodingJobLive extends BaseCommand {
@@ -121,11 +141,18 @@ export default class EncodingJobLive extends BaseCommand {
     const {args} = await this.parse(EncodingJobLive);
     const api = await this.getApi();
 
-    const [liveResult, streamKeys, srtInputs] = await Promise.all([
+    const [liveResult, streamKeysResult, srtInputsResult] = await Promise.all([
       fetchLiveDetails(api, args.id),
       fetchAssignedStreamKeys(api, args.id),
       fetchSrtInputs(api, args.id),
     ]);
+
+    if (streamKeysResult.error) {
+      this.warn(`Could not fetch stream keys (${describeApiError(streamKeysResult.error)}); continuing without them.`);
+    }
+    if (srtInputsResult.error) {
+      this.warn(`Could not fetch SRT input details (${describeApiError(srtInputsResult.error)}); continuing without them.`);
+    }
 
     const {live, available, message} = liveResult;
     const jsonMode = await this.isJsonMode();
@@ -134,7 +161,7 @@ export default class EncodingJobLive extends BaseCommand {
       this.log(message);
     }
 
-    const mappedStreamKeys: StreamKeyOutput[] = streamKeys.map((key) => ({
+    const mappedStreamKeys: StreamKeyOutput[] = streamKeysResult.value.map((key) => ({
       value: key.value,
       ingestPointId: key.assignedIngestPointId,
       status: key.status as string | undefined,
@@ -149,7 +176,7 @@ export default class EncodingJobLive extends BaseCommand {
           encoderIp: live?.encoderIp ?? null,
           application: live?.application ?? null,
           streamKeys: mappedStreamKeys,
-          srtInputs,
+          srtInputs: srtInputsResult.value,
           available,
           ...(message && {message}),
         }
@@ -157,7 +184,7 @@ export default class EncodingJobLive extends BaseCommand {
           encoderIp: live?.encoderIp ?? '(not yet running)',
           application: live?.application ?? '(unknown)',
           streamKeys: mappedStreamKeys,
-          srtInputs,
+          srtInputs: srtInputsResult.value,
         };
 
     await this.outputData(output);
