@@ -76,6 +76,9 @@
   "oclif": {
     "bin": "bitmovin",
     "dirname": "bitmovin",
+    "macos": {
+      "identifier": "com.bitmovin.cli"
+    },
     "plugins": [
       "@oclif/plugin-autocomplete"
     ],
