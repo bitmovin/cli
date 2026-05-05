@@ -6,7 +6,7 @@ on:
     tags: ['v*']
 
 jobs:
-  pack:
+  pack-tarballs-and-windows:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,27 +14,45 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-      - name: Install pack tooling (nsis for .exe, bomutils + xar for .pkg)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y nsis bomutils xar
+      - name: Install NSIS for Windows .exe
+        run: sudo apt-get update && sudo apt-get install -y nsis
       - run: npm ci
       - run: npm run build
       - run: npx oclif manifest
-      - name: Pack tarballs
+      - name: Pack tarballs (all targets)
         run: npx oclif pack tarballs --targets=linux-x64,linux-arm64,darwin-x64,darwin-arm64,win32-x64
-      - name: Pack macOS .pkg (darwin-x64, darwin-arm64)
-        run: npx oclif pack macos
-      - name: Pack Windows .exe (win32-x64)
+      - name: Pack Windows .exe
         run: npx oclif pack win
-      - name: Upload installers as workflow artifact
+      - name: Upload tarballs + Windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: bitmovin-cli-installers
+          name: bitmovin-cli-tarballs-and-windows
           path: |
             dist/*.tar.gz
             dist/*.tar.xz
-            dist/macos/*.pkg
             dist/win32/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+  pack-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx oclif manifest
+      - name: Pack tarballs (darwin targets, needed by pack:macos)
+        run: npx oclif pack tarballs --targets=darwin-x64,darwin-arm64
+      - name: Pack macOS .pkg
+        run: npx oclif pack macos
+      - name: Upload macOS .pkg installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: bitmovin-cli-macos
+          path: dist/macos/*.pkg
           if-no-files-found: error
           retention-days: 30
