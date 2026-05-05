@@ -6,6 +6,31 @@ const mockEncodings = [
   {id: 'enc-3', name: 'Live Encode', cloudRegion: 'AUTO', status: 'RUNNING', createdAt: '2026-01-03T00:00:00.000Z'},
 ];
 
+type StreamFixture = {inputStreams?: {inputId?: string}[]};
+type StreamKeyFixture = {value: string; assignedIngestPointId?: string; status?: string};
+type SrtFixture = {mode: string; host?: string; port: number; path: string};
+
+const streamsByEncoding: Record<string, StreamFixture[]> = {
+  'enc-3': [{inputStreams: [{inputId: 'rtmp-input'}]}],
+  'enc-redundant': [{inputStreams: [{inputId: 'redundant-rtmp-input'}]}],
+  'enc-srt': [{inputStreams: [{inputId: 'srt-input-1'}]}],
+};
+const streamKeysByEncoding: Record<string, StreamKeyFixture[]> = {
+  'enc-3': [{value: 'demo-key', status: 'ASSIGNED'}],
+  'enc-redundant': [
+    {value: 'primary-key', assignedIngestPointId: 'ip-primary', status: 'ASSIGNED'},
+    {value: 'backup-key', assignedIngestPointId: 'ip-backup', status: 'ASSIGNED'},
+  ],
+};
+const inputTypeById: Record<string, string> = {
+  'rtmp-input': 'RTMP',
+  'redundant-rtmp-input': 'REDUNDANT_RTMP',
+  'srt-input-1': 'SRT',
+};
+const srtInputsById: Record<string, SrtFixture> = {
+  'srt-input-1': {mode: 'LISTENER', port: 2088, path: '/live'},
+};
+
 const mockApi = {
   encoding: {
     encodings: {
@@ -15,6 +40,9 @@ const mockApi = {
       start: async () => ({}),
       stop: async () => ({}),
       delete: async () => ({}),
+      streams: {
+        list: async (id: string) => ({items: streamsByEncoding[id] ?? []}),
+      },
       live: {
         get: async (id: string) => {
           if (id === 'enc-queued' || id === 'enc-unavailable') {
@@ -28,12 +56,35 @@ const mockApi = {
             throw err;
           }
 
+          if (id === 'enc-srt') {
+            return {encoderIp: '192.0.2.20', application: 'live'};
+          }
+
+          if (id === 'enc-redundant') {
+            return {encoderIp: '192.0.2.30', application: 'live'};
+          }
+
           return {
             encoderIp: id === 'enc-3' ? '192.0.2.10' : undefined,
             streamKey: 'demo-key',
             application: 'live',
           };
         },
+      },
+    },
+    live: {
+      streamKeys: {
+        list: async (params: {assignedEncodingId?: string} = {}) => ({
+          items: params.assignedEncodingId ? streamKeysByEncoding[params.assignedEncodingId] ?? [] : [],
+        }),
+      },
+    },
+    inputs: {
+      type: {
+        get: async (inputId: string) => ({type: inputTypeById[inputId]}),
+      },
+      srt: {
+        get: async (inputId: string) => srtInputsById[inputId],
       },
     },
   },
@@ -136,18 +187,16 @@ describe('encoding job status', () => {
 });
 
 describe('encoding job live', () => {
-  it('prints encoder IP, stream key, and application', async () => {
+  it('prints encoder IP, stream keys, and application', async () => {
     const cap = captureStdout();
     const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
-    await Cmd.run(['enc-3']);
+    await Cmd.run(['enc-3', '--json']);
     cap.restore();
-    const out = cap.output();
-    expect(out).toContain('encoderIp');
-    expect(out).toContain('192.0.2.10');
-    expect(out).toContain('streamKey');
-    expect(out).toContain('demo-key');
-    expect(out).toContain('application');
-    expect(out).toContain('live');
+    const data = JSON.parse(cap.output());
+    expect(data.encoderIp).toBe('192.0.2.10');
+    expect(data.application).toBe('live');
+    expect(data.streamKeys).toHaveLength(1);
+    expect(data.streamKeys[0].value).toBe('demo-key');
   });
 
   it('shows "(not yet running)" when encoderIp is unset', async () => {
@@ -158,23 +207,33 @@ describe('encoding job live', () => {
     expect(cap.output()).toContain('(not yet running)');
   });
 
-  it('outputs JSON with --json', async () => {
-    const cap = captureStdout();
-    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
-    await Cmd.run(['enc-3', '--json']);
-    cap.restore();
-    const data = JSON.parse(cap.output());
-    expect(data.encoderIp).toBe('192.0.2.10');
-    expect(data.streamKey).toBe('demo-key');
-    expect(data.application).toBe('live');
-  });
-
   it('supports --fields filtering', async () => {
     const cap = captureStdout();
     const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
     await Cmd.run(['enc-3', '--fields', 'encoderIp']);
     cap.restore();
     expect(JSON.parse(cap.output())).toEqual({encoderIp: '192.0.2.10'});
+  });
+
+  it('lists every stream key for redundant RTMP encodings', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-redundant', '--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.streamKeys).toHaveLength(2);
+    expect(data.streamKeys.map((k: {value: string}) => k.value)).toEqual(['primary-key', 'backup-key']);
+    expect(data.streamKeys.map((k: {ingestPointId?: string}) => k.ingestPointId)).toEqual(['ip-primary', 'ip-backup']);
+  });
+
+  it('surfaces SRT mode/host/port/path from the encoding\'s streams', async () => {
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/live.js');
+    await Cmd.run(['enc-srt', '--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.srtInputs).toHaveLength(1);
+    expect(data.srtInputs[0]).toMatchObject({mode: 'LISTENER', port: 2088, path: '/live'});
   });
 
   it('handles queued live encodings whose details are not available yet', async () => {
