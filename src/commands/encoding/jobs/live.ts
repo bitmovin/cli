@@ -23,14 +23,14 @@ interface SrtInputOutput {
   path?: string;
 }
 
-interface LiveOutput extends Record<string, unknown> {
-  encoderIp: string;
-  application: string;
+type LiveDetails = LiveEncoding & {
   streamKeys: StreamKeyOutput[];
   srtInputs: SrtInputOutput[];
   available?: boolean;
   message?: string;
-}
+};
+
+type LiveDetailsOutput = LiveDetails & Record<string, unknown>;
 
 function normalizeErrorText(value: unknown): string {
   return String(value ?? '').toLowerCase().replace(/[_-]+/g, ' ');
@@ -141,7 +141,7 @@ export default class EncodingJobLive extends BaseCommand {
       mappedStreamKeys.push({value: live.streamKey});
     }
 
-    const output: LiveOutput = {
+    const output: LiveDetailsOutput = {
       encoderIp: live?.encoderIp ?? '(not yet running)',
       application: live?.application ?? '(unknown)',
       streamKeys: mappedStreamKeys,
