@@ -80,5 +80,5 @@ jobs:
           files: |
             artifacts/bitmovin-cli-tarballs-and-windows/*.tar.gz
             artifacts/bitmovin-cli-tarballs-and-windows/*.tar.xz
-            artifacts/bitmovin-cli-tarballs-and-windows/*.exe
+            artifacts/bitmovin-cli-tarballs-and-windows/win32/*.exe
             artifacts/bitmovin-cli-macos/*.pkg
