@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- CI workflow that builds standalone tarballs (macOS, Linux, Windows) via `oclif pack` and uploads them as workflow artifacts. Publishing to GitHub Releases and npm will follow in a subsequent change.
+- CI workflow that builds standalone tarballs (macOS, Linux, Windows) plus macOS `.pkg` and Windows `.exe` installers via `oclif pack` and uploads them as workflow artifacts. Installers are unsigned for now — Apple Developer ID notarization and Authenticode signing will follow. Publishing to GitHub Releases and npm will follow in a subsequent change.
 
 ### Changed
 
