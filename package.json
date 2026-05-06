@@ -37,7 +37,7 @@
     "dist"
   ],
   "scripts": {
-    "prepare": "tsc -b",
+    "prepare": "[ -d dist ] || tsc -b",
     "build": "tsc -b",
     "dev": "tsc -b --watch",
     "test": "vitest run",
@@ -76,6 +76,10 @@
   "oclif": {
     "bin": "bitmovin",
     "dirname": "bitmovin",
+    "macos": {
+      "identifier": "com.bitmovin.cli",
+      "sign": "687757AC438BFBA10137B2912CBC03F8641BB388"
+    },
     "plugins": [
       "@oclif/plugin-autocomplete"
     ],

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `bitmovin encoding jobs live <id>` to show live encoding connection details, with JSON output support. Surfaces every assigned stream key (including the per-static-ingest-point keys used by redundant RTMP) and the SRT mode/host/port/path for SRT inputs.
 
   JSON shape note for anyone tracking the unreleased branch: the `--json` output now reports `streamKeys: [{value, ingestPointId, status}]` instead of the singular `streamKey` field that earlier iterations exposed. A `streamKey` alias is still emitted (equal to `streamKeys[0]?.value`) for one-off scripts; redundant RTMP setups should read `streamKeys[]` to get every per-ingest-point key.
+- CI workflow that builds standalone tarballs (macOS, Linux, Windows) plus macOS `.pkg` (signed with Developer ID Installer) and Windows `.exe` installers via `oclif pack` and uploads them as workflow artifacts for internal testing. macOS `.pkg` signature is verified via `pkgutil --check-signature` in CI. GitHub Release publishing, npm publishing, and macOS notarization will follow in subsequent changes.
 
 ### Changed
 
