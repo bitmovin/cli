@@ -66,6 +66,14 @@ jobs:
         run: npx oclif pack tarballs --targets=darwin-x64,darwin-arm64
       - name: Pack macOS .pkg (signed with Developer ID Installer)
         run: npx oclif pack macos
+      - name: Verify .pkg signatures
+        run: |
+          set -e
+          for pkg in dist/macos/*.pkg; do
+            echo "=== $pkg ==="
+            pkgutil --check-signature "$pkg"
+            echo
+          done
       - name: Upload macOS .pkg installers
         uses: actions/upload-artifact@v4
         with:
