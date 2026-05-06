@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   JSON shape note for anyone tracking the unreleased branch: the `--json` output now reports `streamKeys: [{value, ingestPointId, status}]` instead of the singular `streamKey` field that earlier iterations exposed. A `streamKey` alias is still emitted (equal to `streamKeys[0]?.value`) for one-off scripts; redundant RTMP setups should read `streamKeys[]` to get every per-ingest-point key.
 - CI workflow that builds standalone tarballs (macOS, Linux, Windows) plus macOS `.pkg` (signed with Developer ID Installer) and Windows `.exe` installers via `oclif pack` and uploads them as workflow artifacts for internal testing. macOS `.pkg` signature is verified via `pkgutil --check-signature` in CI. npm publishing and macOS notarization will follow in subsequent changes.
-- Tag-pushed `v*` runs now also create a draft GitHub Release with the tarballs, `.exe`, and signed `.pkg` files attached as individual downloadable assets. Drafts are invisible to non-maintainers; "Publish release" in the Releases UI flips visibility once contents are reviewed.
+- Tag-pushed `v*` runs now also create a draft GitHub Release with the tarballs, `.exe`, and signed `.pkg` files attached as individual downloadable assets, plus a `SHA256SUMS` file so users can verify downloads. Release creation is gated on a `ci-passed` job that asserts `ci.yml` (lint, build, tests) succeeded on the tagged commit. Drafts are invisible to non-maintainers; "Publish release" in the Releases UI flips visibility once contents are reviewed.
 
 ### Changed
 
