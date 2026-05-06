@@ -5,6 +5,9 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: write
+
 jobs:
   pack-tarballs-and-windows:
     runs-on: ubuntu-latest
@@ -81,3 +84,24 @@ jobs:
           path: dist/macos/*.pkg
           if-no-files-found: error
           retention-days: 30
+
+  draft-release:
+    needs: [pack-tarballs-and-windows, pack-macos]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create draft release with installer assets
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/bitmovin-cli-tarballs-and-windows/*.tar.gz
+            artifacts/bitmovin-cli-tarballs-and-windows/*.tar.xz
+            artifacts/bitmovin-cli-tarballs-and-windows/win32/*.exe
+            artifacts/bitmovin-cli-macos/*.pkg
