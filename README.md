@@ -61,6 +61,7 @@ bitmovin encoding jobs status <id> [--watch]    # Live progress bar with --watch
 bitmovin encoding jobs start <id> [--watch]
 bitmovin encoding jobs stop <id>
 bitmovin encoding jobs delete <id>
+bitmovin encoding jobs live <id>                # Encoder IP, stream keys, SRT inputs
 ```
 
 ### Encoding — Inputs & Outputs
