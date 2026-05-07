@@ -1,6 +1,6 @@
 {
   "name": "@bitmovin/cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Bitmovin CLI — manage encodings, player licenses, and analytics from the terminal",
   "license": "MIT",
   "publishConfig": {
