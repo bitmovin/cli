@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-07
+
 ### Added
 
 - Added `bitmovin encoding jobs live <id>` to show live encoding connection details, with JSON output support. Surfaces every assigned stream key (including the per-static-ingest-point keys used by redundant RTMP) and the SRT mode/host/port/path for SRT inputs.
@@ -23,9 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `bitmovin config show` now reports the effective API key source while keeping values masked consistently.
-
-### Fixed
-
 - Fixed encoding template validation for the upstream JSON Schema 2020-12 schema and OpenAPI `double` formats.
 
 ## [0.2.0] - 2026-04-15
