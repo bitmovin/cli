@@ -22,6 +22,7 @@ afterEach(() => {
 
   vi.unstubAllGlobals();
   delete process.env.BM_CLI_TEST_HOME;
+  delete process.env.BITMOVIN_API_KEY;
 });
 
 const mockTemplates = [
@@ -45,11 +46,35 @@ vi.mock('../../src/lib/client.js', () => ({
       },
     },
   }),
+  resolveAuth: (override?: string) => ({
+    apiKey: override ?? process.env.BITMOVIN_API_KEY ?? 'mock-api-key',
+    tenantOrgId: undefined,
+  }),
+  API_BASE_URL: 'https://api.bitmovin.com/v1',
 }));
 
 function captureStdout(): {output: () => string; restore: () => void} {
   let captured = '';
   const mock = vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
+    captured += typeof chunk === 'string' ? chunk : chunk.toString();
+    return true;
+  });
+  let restored = false;
+  const restore = () => {
+    if (restored) return;
+    restored = true;
+    mock.mockRestore();
+  };
+  cleanupCallbacks.push(restore);
+  return {
+    output: () => captured,
+    restore,
+  };
+}
+
+function captureStderr(): {output: () => string; restore: () => void} {
+  let captured = '';
+  const mock = vi.spyOn(process.stderr, 'write').mockImplementation((chunk: string | Uint8Array) => {
     captured += typeof chunk === 'string' ? chunk : chunk.toString();
     return true;
   });
@@ -110,6 +135,105 @@ describe('encoding templates delete', () => {
     cap.restore();
     capErr.mockRestore();
     expect(deleteMock).toHaveBeenCalledWith('tmpl-1');
+  });
+});
+
+describe('encoding templates create', () => {
+  function setupCreate(): {dir: string; fetchMock: ReturnType<typeof vi.fn>} {
+    const dir = mkdtempSync(join(tmpdir(), 'bm-cli-create-'));
+    cleanupCallbacks.push(() => rmSync(dir, {recursive: true, force: true}));
+    process.env.BITMOVIN_API_KEY = 'test-key-create';
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({data: {result: {id: 'tmpl-new', name: 'Test'}}}),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return {dir, fetchMock};
+  }
+
+  it('posts the YAML body verbatim with Content-Type: application/yaml', async () => {
+    const {dir, fetchMock} = setupCreate();
+    const file = join(dir, 't.yaml');
+    const yamlBody = "metadata:\n  name: Test\n  type: LIVE\nencodings: {}\n";
+    writeFileSync(file, yamlBody);
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/templates/create.js');
+    await Cmd.run([file]);
+    cap.restore();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://api.bitmovin.com/v1/encoding/templates');
+    expect((init as RequestInit).method).toBe('POST');
+    expect((init as RequestInit).body).toBe(yamlBody);
+    const headers = (init as RequestInit).headers as Record<string, string>;
+    expect(headers['Content-Type']).toBe('application/yaml');
+    expect(headers['X-Api-Key']).toBe('test-key-create');
+  });
+
+  it('outputs clean JSON with --json', async () => {
+    const {dir} = setupCreate();
+    const file = join(dir, 't.yaml');
+    writeFileSync(file, 'metadata:\n  name: Test\n');
+    const cap = captureStdout();
+    const capErr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const {default: Cmd} = await import('../../src/commands/encoding/templates/create.js');
+    await Cmd.run([file, '--json']);
+    cap.restore();
+    capErr.mockRestore();
+    const data = JSON.parse(cap.output());
+    expect(data).toEqual({id: 'tmpl-new', name: 'Test'});
+  });
+
+  it('surfaces API error message on failure', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bm-cli-create-'));
+    cleanupCallbacks.push(() => rmSync(dir, {recursive: true, force: true}));
+    process.env.BITMOVIN_API_KEY = 'test-key-create';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        text: async () => JSON.stringify({developerMessage: 'Could not parse encoding template'}),
+      }),
+    );
+    const file = join(dir, 'bad.yaml');
+    writeFileSync(file, 'metadata:\n  type: LIVE\n');
+    const capErr = captureStderr();
+    const {default: Cmd} = await import('../../src/commands/encoding/templates/create.js');
+    await expect(Cmd.run([file])).rejects.toThrow(/EEXIT: 1/);
+    capErr.restore();
+    expect(capErr.output()).toContain('API error: 400');
+    expect(capErr.output()).toContain('Could not parse encoding template');
+  });
+
+  it('outputs structured JSON API error with --json', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bm-cli-create-'));
+    cleanupCallbacks.push(() => rmSync(dir, {recursive: true, force: true}));
+    process.env.BITMOVIN_API_KEY = 'test-key-create';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        headers: {get: (name: string) => (name.toLowerCase() === 'x-request-id' ? 'req-create-1' : null)},
+        text: async () => JSON.stringify({developerMessage: 'Could not parse encoding template'}),
+      }),
+    );
+    const file = join(dir, 'bad.yaml');
+    writeFileSync(file, 'metadata:\n  type: LIVE\n');
+    const capOut = captureStdout();
+    const capErr = captureStderr();
+    const {default: Cmd} = await import('../../src/commands/encoding/templates/create.js');
+    await expect(Cmd.run([file, '--json'])).rejects.toThrow(/EEXIT: 1/);
+    capOut.restore();
+    capErr.restore();
+    expect(JSON.parse(capOut.output())).toEqual({
+      error: true,
+      httpStatusCode: 400,
+      message: 'Could not parse encoding template',
+      requestId: 'req-create-1',
+    });
   });
 });
 

@@ -45,7 +45,7 @@ The recommended way to encode. Define your entire workflow in a single [YAML tem
 ```bash
 bitmovin encoding templates start ./template.yaml --watch   # Start from file
 bitmovin encoding templates start --id <id> --watch         # Start stored template
-bitmovin encoding templates create ./template.yaml --name "Standard VOD"
+bitmovin encoding templates create ./template.yaml              # Name comes from metadata.name
 bitmovin encoding templates list
 bitmovin encoding templates get <id>
 bitmovin encoding templates delete <id>

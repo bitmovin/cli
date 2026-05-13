@@ -23,7 +23,7 @@ bitmovin config set organization <org-id>
 bitmovin encoding templates start ./template.yaml --watch  # Start encoding from YAML template
 bitmovin encoding templates list                           # List stored templates
 bitmovin encoding templates get <id>                       # Get template details
-bitmovin encoding templates create ./file.yaml --name "X"  # Store template
+bitmovin encoding templates create ./file.yaml             # Store template (name from metadata.name)
 bitmovin encoding templates delete <id>
 bitmovin encoding templates validate ./template.yaml       # Validate YAML against schema
 \`\`\`
