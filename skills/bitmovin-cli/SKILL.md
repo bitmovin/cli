@@ -14,6 +14,48 @@ bitmovin config list organizations
 bitmovin config set organization <org-id>
 ```
 
+## AI Assistant Skills
+
+The CLI can install this local CLI reference skill and additional Bitmovin skills for AI assistants.
+
+```bash
+# Install the local bitmovin-cli skill into detected agent skill directories
+bitmovin init
+
+# Install the local CLI skill for a specific supported agent
+bitmovin init --agent pi
+bitmovin init --agent claude
+bitmovin init --agent codex
+bitmovin init --agent gemini
+
+# Print this local CLI skill markdown to stdout
+bitmovin skill
+```
+
+Remote Bitmovin skills are discovered from the GitHub archive at `https://github.com/bitmovin/skills` by scanning `skills/*/SKILL.md`.
+
+```bash
+# List available remote Bitmovin skills
+bitmovin skills list
+bitmovin skills list --long
+
+# Search by skill name, description, or inferred tags
+bitmovin skills find android
+bitmovin skills find encoding
+bitmovin skills find player
+
+# Install remote skills
+bitmovin skills add --skill bitmovin
+bitmovin skills add --skill bitmovin-player-android --agent pi
+bitmovin skills add --all --agent pi
+
+# Remove installed skills
+bitmovin skills remove --skill bitmovin --agent pi
+```
+
+Supported agents: `pi`, `claude`, `codex`, `gemini`. If `--agent` is omitted, the CLI installs/removes skills in detected existing agent skill directories.
+
+
 ## Encoding
 
 ### Templates (recommended workflow)
