@@ -34,7 +34,8 @@
   "types": "dist/index.d.ts",
   "files": [
     "bin",
-    "dist"
+    "dist",
+    "skills"
   ],
   "scripts": {
     "prepare": "[ -d dist ] || tsc -b",
@@ -55,7 +56,8 @@
     "cli-progress": "^3.12.0",
     "cli-table3": "^0.6.5",
     "js-yaml": "^4.1.0",
-    "ora": "^8.1.1"
+    "ora": "^8.1.1",
+    "tar": "^7.5.15"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -64,6 +66,7 @@
     "@types/cli-progress": "^3.11.6",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22",
+    "@types/tar": "^6.1.13",
     "eslint": "^10.2.0",
     "oclif": "^4",
     "typescript": "^5.7",
@@ -92,6 +95,9 @@
     },
     "topicSeparator": " ",
     "topics": {
+      "skills": {
+        "description": "Install and manage Bitmovin AI assistant skills"
+      },
       "config": {
         "description": "Configure API key and defaults"
       },

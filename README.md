@@ -28,6 +28,28 @@ bitmovin encoding templates start ./my-encoding.yaml --watch
 
 ## Commands
 
+### AI Assistant Skills
+
+Install a local Bitmovin CLI skill for AI assistants:
+
+```bash
+bitmovin init                         # Install the local bitmovin-cli skill into detected agents
+bitmovin init --agent pi              # Install for a specific agent
+bitmovin skill                        # Print the local CLI skill markdown
+```
+
+Manage additional Bitmovin skills sourced from [github.com/bitmovin/skills](https://github.com/bitmovin/skills):
+
+```bash
+bitmovin skills list                  # List available remote skills
+bitmovin skills find android          # Search remote skills
+bitmovin skills add --skill bitmovin  # Install a remote skill
+bitmovin skills add --all             # Install all remote skills
+bitmovin skills remove --skill bitmovin
+```
+
+Supported agents are `pi`, `claude`, `codex`, and `gemini`. If `--agent` is omitted, the CLI installs into detected existing agent skill directories.
+
 ### Config
 
 ```bash
