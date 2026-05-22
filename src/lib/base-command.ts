@@ -54,9 +54,10 @@ export abstract class BaseCommand extends Command {
         case 401:
           lines.push(chalk.red('Authentication failed.'));
           lines.push('');
-          lines.push('  Your API key is invalid or missing.');
-          lines.push('  1. Get your API key from https://dashboard.bitmovin.com/account');
-          lines.push('  2. Run: bitmovin config set api-key <your-api-key>');
+          lines.push('  Your credentials are invalid or missing. Try one of:');
+          lines.push('    bitmovin login                              # OAuth (recommended)');
+          lines.push('    bitmovin config set api-key <your-api-key>  # API key');
+          lines.push('  Get an API key at https://dashboard.bitmovin.com/account');
           break;
         case 403:
           lines.push(chalk.red('Access denied.'));
@@ -131,7 +132,7 @@ export abstract class BaseCommand extends Command {
   protected async getApi(): Promise<ApiClient> {
     if (!this._api) {
       const flags = await this.parseFlags();
-      this._api = getClient(flags['api-key'] as string | undefined);
+      this._api = await getClient(flags['api-key'] as string | undefined);
     }
 
     return this._api;

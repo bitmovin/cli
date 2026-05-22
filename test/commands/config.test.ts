@@ -171,6 +171,71 @@ describe('config show', () => {
     expect(data.apiKey).toBeNull();
   });
 
+  it('reports OAuth session in text mode when one is stored', async () => {
+    configMock.saveConfig({
+      oauth: {
+        accessToken: 'tok',
+        expiresAt: new Date('2099-01-01T00:00:00Z').getTime(),
+        user: {email: 'me@example.com'},
+      },
+    });
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run([]);
+    cap.restore();
+    expect(cap.output()).toContain('OAuth:');
+    expect(cap.output()).toContain('me@example.com');
+    expect(cap.output()).toContain('2099-01-01T00:00:00.000Z');
+  });
+
+  it('flags an expired OAuth session in text mode', async () => {
+    configMock.saveConfig({
+      oauth: {
+        accessToken: 'tok',
+        expiresAt: 1, // 1970 — definitely expired
+        user: {email: 'me@example.com'},
+      },
+    });
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run([]);
+    cap.restore();
+    expect(cap.output()).toContain('expired');
+  });
+
+  it('exposes OAuth metadata in --json mode', async () => {
+    configMock.saveConfig({
+      oauth: {
+        accessToken: 'tok',
+        refreshToken: 'refresh',
+        expiresAt: new Date('2099-01-01T00:00:00Z').getTime(),
+        scope: 'openid email',
+        user: {email: 'me@example.com', sub: 'auth0|123'},
+      },
+    });
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run(['--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.oauth).toMatchObject({
+      user: {email: 'me@example.com', sub: 'auth0|123'},
+      hasRefreshToken: true,
+      expired: false,
+      scope: 'openid email',
+    });
+    expect(data.oauth.expiresAt).toBe('2099-01-01T00:00:00.000Z');
+  });
+
+  it('reports oauth as null in --json mode when not logged in', async () => {
+    const cap = captureOutput();
+    const {default: Cmd} = await import('../../src/commands/config/show.js');
+    await Cmd.run(['--json']);
+    cap.restore();
+    const data = JSON.parse(cap.output());
+    expect(data.oauth).toBeNull();
+  });
+
   it('treats empty API key values as unset in config show output', async () => {
     configMock.saveConfig({apiKey: '12345678-abcd-1234-abcd-123456789abc'});
     process.env.BITMOVIN_API_KEY = '';
