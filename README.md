@@ -48,6 +48,19 @@ loopback port (`http://127.0.0.1:27315/callback`). To target a different IdP set
 
 ## Commands
 
+### AI Assistant Skills
+
+Install and manage Bitmovin AI assistant skills from [github.com/bitmovin/skills](https://github.com/bitmovin/skills). These commands delegate to the open [`skills`](https://www.npmjs.com/package/skills) installer.
+
+```bash
+bitmovin skills list                  # List available Bitmovin skills
+bitmovin skills add --skill bitmovin  # Install a specific skill
+bitmovin skills add --all             # Install all Bitmovin skills
+bitmovin skills remove --skill bitmovin
+```
+
+Use `--agent` with agent IDs supported by `npx skills`, for example `pi`, `claude-code`, `codex`, or `gemini-cli`.
+
 ### Config
 
 ```bash

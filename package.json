@@ -93,6 +93,9 @@
     },
     "topicSeparator": " ",
     "topics": {
+      "skills": {
+        "description": "Install and manage Bitmovin AI assistant skills"
+      },
       "config": {
         "description": "Configure API key and defaults"
       },
