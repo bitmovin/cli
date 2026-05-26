@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `bitmovin login` and `bitmovin logout` for browser-based OAuth (PKCE). The CLI stores the resulting session in `~/.config/bitmovin/config.json` (mode `0600`), uses `Authorization: Bearer …` when calling the Bitmovin API, and refreshes access tokens silently. Credential resolution priority is now `--api-key` flag > `BITMOVIN_API_KEY` env > stored OAuth session > `api-key` in config. `--print-url` skips opening a browser for headless / SSH use. Endpoints, client ID, scope, and the loopback port are env-overridable (`BITMOVIN_OAUTH_*`).
+- `bitmovin config show` now reports the OAuth user, expiry, and whether a refresh token is present (text + `--json`).
+
 ## [0.3.0] - 2026-05-07
 
 ### Added
