@@ -33,7 +33,6 @@ bitmovin encoding templates start ./my-encoding.yaml --watch
 Install and manage Bitmovin AI assistant skills from [github.com/bitmovin/skills](https://github.com/bitmovin/skills). These commands delegate to the open [`skills`](https://www.npmjs.com/package/skills) installer.
 
 ```bash
-bitmovin init                         # Install the Bitmovin hub skill
 bitmovin skills list                  # List available Bitmovin skills
 bitmovin skills add --skill bitmovin  # Install a specific skill
 bitmovin skills add --all             # Install all Bitmovin skills
