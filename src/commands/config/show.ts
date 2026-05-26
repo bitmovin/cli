@@ -22,7 +22,7 @@ function normalizeForDisplay(resolved: ResolvedApiKey): ResolvedApiKey {
 }
 
 export default class ConfigShow extends BaseCommand {
-  static override description = 'Show current configuration. Resolves the API key from --api-key, BITMOVIN_API_KEY, then the config file.';
+  static override description = 'Show current configuration. Resolves the API key from --api-key, BITMOVIN_API_KEY, then the config file. Lists the OAuth session if one is stored.';
 
   static override flags = {
     ...BaseCommand.baseFlags,
@@ -33,6 +33,8 @@ export default class ConfigShow extends BaseCommand {
     const config = loadConfig();
     const resolved = normalizeForDisplay(resolveApiKey(config, flags['api-key'] as string | undefined));
     const maskedKey = resolved.value ? maskSecret(resolved.value) : undefined;
+    const oauth = config.oauth;
+    const oauthExpired = typeof oauth?.expiresAt === 'number' && Date.now() >= oauth.expiresAt;
 
     if (await this.isJsonMode()) {
       await this.outputData({
@@ -41,6 +43,15 @@ export default class ConfigShow extends BaseCommand {
         apiKeySource: resolved.source,
         tenantOrgId: config.tenantOrgId ?? null,
         defaultRegion: config.defaultRegion ?? null,
+        oauth: oauth
+          ? {
+              user: oauth.user ?? null,
+              expiresAt: oauth.expiresAt ? new Date(oauth.expiresAt).toISOString() : null,
+              expired: oauthExpired,
+              hasRefreshToken: Boolean(oauth.refreshToken),
+              scope: oauth.scope ?? null,
+            }
+          : null,
       });
       return;
     }
@@ -55,5 +66,15 @@ export default class ConfigShow extends BaseCommand {
 
     this.log(`Tenant Org ID:  ${config.tenantOrgId ?? '(not set)'}`);
     this.log(`Default Region: ${config.defaultRegion ?? '(not set)'}`);
+
+    if (oauth) {
+      const who = oauth.user?.email ?? oauth.user?.sub ?? '(unknown user)';
+      const expiry = oauth.expiresAt
+        ? `expires ${new Date(oauth.expiresAt).toISOString()}${oauthExpired ? ' — expired' : ''}`
+        : 'no expiry';
+      this.log(`OAuth:          ${who} (${expiry})`);
+    } else {
+      this.log('OAuth:          (not logged in)');
+    }
   }
 }

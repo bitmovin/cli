@@ -37,35 +37,35 @@ describe('getClient with BITMOVIN_API_KEY env var', () => {
     process.env.BITMOVIN_API_KEY = 'env-var-key';
     // Re-import to get fresh module
     const {getClient} = await import('../../src/lib/client.js');
-    getClient();
+    await getClient();
     expect(lastConstructorArgs.apiKey).toBe('env-var-key');
   });
 
   it('prefers override over env var', async () => {
     process.env.BITMOVIN_API_KEY = 'env-var-key';
     const {getClient} = await import('../../src/lib/client.js');
-    getClient('override-key');
+    await getClient('override-key');
     expect(lastConstructorArgs.apiKey).toBe('override-key');
   });
 
   it('falls back to config file when env var is not set', async () => {
     delete process.env.BITMOVIN_API_KEY;
     const {getClient} = await import('../../src/lib/client.js');
-    getClient();
+    await getClient();
     expect(lastConstructorArgs.apiKey).toBe('config-file-key');
   });
 
   it('preserves empty override precedence instead of falling back', async () => {
     process.env.BITMOVIN_API_KEY = 'env-var-key';
     const {getClient} = await import('../../src/lib/client.js');
-    expect(() => getClient('')).toThrow('No API key configured');
+    await expect(getClient('')).rejects.toThrow('No credentials configured');
     expect(lastConstructorArgs).toBeUndefined();
   });
 
   it('preserves empty env var precedence instead of falling back to config', async () => {
     process.env.BITMOVIN_API_KEY = '';
     const {getClient} = await import('../../src/lib/client.js');
-    expect(() => getClient()).toThrow('No API key configured');
+    await expect(getClient()).rejects.toThrow('No credentials configured');
     expect(lastConstructorArgs).toBeUndefined();
   });
 });

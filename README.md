@@ -15,8 +15,10 @@ Requires Node.js 20+.
 ## Quick Start
 
 ```bash
-# 1. Get your API key from https://dashboard.bitmovin.com/account
-bitmovin config set api-key YOUR_API_KEY
+# 1. Authenticate — either OAuth (recommended) or an API key
+bitmovin login                                 # OAuth (browser-based)
+# or
+bitmovin config set api-key YOUR_API_KEY       # API key (https://dashboard.bitmovin.com/account)
 
 # 2. Select an organization (optional)
 bitmovin config list organizations
@@ -25,6 +27,24 @@ bitmovin config set organization ORG_ID
 # 3. Start encoding
 bitmovin encoding templates start ./my-encoding.yaml --watch
 ```
+
+### Auth
+
+```bash
+bitmovin login              # Browser-based OAuth (PKCE)
+bitmovin login --print-url  # Print authorize URL instead of opening a browser (useful over SSH)
+bitmovin logout             # Forget the stored OAuth session
+```
+
+`bitmovin login` opens a browser for OAuth (PKCE) and stores the resulting
+session in `~/.config/bitmovin/config.json` with file mode `0600`. Tokens
+are kept as plain JSON on disk (no OS keychain yet — tracked as a follow-up).
+Access tokens are refreshed silently in the background; you only need to log
+in again when the refresh token is no longer valid. The callback uses a fixed
+loopback port (`http://127.0.0.1:27315/callback`). To target a different IdP set
+`BITMOVIN_OAUTH_ISSUER`, `BITMOVIN_OAUTH_CLIENT_ID`, `BITMOVIN_OAUTH_SCOPE`,
+`BITMOVIN_OAUTH_REDIRECT_PORT`, or override individual URLs with
+`BITMOVIN_OAUTH_AUTHORIZE_URL` and `BITMOVIN_OAUTH_TOKEN_URL`.
 
 ## Commands
 
@@ -170,9 +190,9 @@ bitmovin encoding jobs list | head -5
 
 ## Configuration
 
-Config is stored in `~/.config/bitmovin/config.json`. You can also set the API key via the `BITMOVIN_API_KEY` environment variable.
+Config is stored in `~/.config/bitmovin/config.json` (mode `0600`). You can also set the API key via the `BITMOVIN_API_KEY` environment variable, or sign in with `bitmovin login` to store an OAuth session.
 
-**Priority:** `--api-key` flag > `BITMOVIN_API_KEY` env var > config file.
+**Credential priority:** `--api-key` flag > `BITMOVIN_API_KEY` env var > stored OAuth session > `api-key` in config file.
 
 | Key | Description |
 |-----|-------------|

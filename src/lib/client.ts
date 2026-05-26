@@ -1,6 +1,7 @@
 import BitmovinApiSdk from '@bitmovin/api-sdk';
-import {loadConfig} from './config.js';
-import {resolveApiKey} from './api-key.js';
+import {loadConfig, saveConfig, type OAuthSession} from './config.js';
+import {resolveAuth} from './api-key.js';
+import {isExpired, refreshAccessToken} from './oauth.js';
 
 // The Bitmovin SDK is CJS with `export default class BitmovinApi`.
 // Under NodeNext module resolution, TypeScript treats default imports from CJS
@@ -14,7 +15,12 @@ type PlayerApi = import('@bitmovin/api-sdk/dist/player/PlayerApi.js').default;
 type StreamsApi = import('@bitmovin/api-sdk/dist/streams/StreamsApi.js').default;
 
 interface BitmovinApiConstructor {
-  new (config: {apiKey: string; tenantOrgId?: string}): ApiClient;
+  new (config: {
+    apiKey: string;
+    tenantOrgId?: string;
+    headers?: Record<string, string>;
+    fetch?: typeof fetch;
+  }): ApiClient;
 }
 
 export interface ApiClient {
@@ -31,21 +37,90 @@ export interface ApiClient {
 const SdkModule = BitmovinApiSdk as unknown as {default?: BitmovinApiConstructor};
 const BitmovinApi: BitmovinApiConstructor = SdkModule.default ?? (BitmovinApiSdk as unknown as BitmovinApiConstructor);
 
-export function getClient(apiKeyOverride?: string): ApiClient {
-  const config = loadConfig();
-  const {value: apiKey} = resolveApiKey(config, apiKeyOverride);
+const NO_CREDENTIALS_MESSAGE =
+  'No credentials configured.\n\n' +
+  '  Run one of:\n' +
+  '    bitmovin login                              # OAuth (recommended)\n' +
+  '    bitmovin config set api-key <your-api-key>  # API key from https://dashboard.bitmovin.com/account\n' +
+  '  Or set the BITMOVIN_API_KEY environment variable.\n';
 
-  if (!apiKey) {
+export async function getClient(apiKeyOverride?: string): Promise<ApiClient> {
+  const config = loadConfig();
+  const auth = resolveAuth(config, apiKeyOverride);
+
+  if (auth.kind === 'none') {
+    throw new Error(NO_CREDENTIALS_MESSAGE);
+  }
+
+  if (auth.kind === 'api-key') {
+    if (!auth.value) {
+      throw new Error(NO_CREDENTIALS_MESSAGE);
+    }
+
+    return new BitmovinApi({
+      apiKey: auth.value,
+      ...(config.tenantOrgId && {tenantOrgId: config.tenantOrgId}),
+    });
+  }
+
+  // OAuth: refresh proactively if the token is near/past expiry, then build
+  // an SDK client that sends Authorization: Bearer instead of X-Api-Key.
+  const session = await ensureFreshSession(auth.session);
+
+  return new BitmovinApi({
+    // SDK validates apiKey is non-empty; we replace the header below.
+    apiKey: 'oauth',
+    ...(config.tenantOrgId && {tenantOrgId: config.tenantOrgId}),
+    headers: {
+      'X-Api-Key': '',
+      Authorization: `Bearer ${session.accessToken}`,
+    },
+    fetch: createBearerFetch(),
+  });
+}
+
+async function ensureFreshSession(session: OAuthSession): Promise<OAuthSession> {
+  if (!isExpired(session)) return session;
+
+  if (!session.refreshToken) {
     throw new Error(
-      'No API key configured.\n\n' +
-      '  1. Get your API key from https://dashboard.bitmovin.com/account\n' +
-      '  2. Run: bitmovin config set api-key <your-api-key>\n' +
-      '  Or set the BITMOVIN_API_KEY environment variable.\n',
+      'OAuth session expired and no refresh token is available.\n' +
+      '  Run: bitmovin login\n',
     );
   }
 
-  return new BitmovinApi({
-    apiKey,
-    ...(config.tenantOrgId && {tenantOrgId: config.tenantOrgId}),
-  });
+  let refreshed: OAuthSession;
+  try {
+    refreshed = await refreshAccessToken(session.refreshToken);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      'Failed to refresh OAuth token: ' + detail + '\n' +
+      '  Run: bitmovin login\n',
+      {cause: err},
+    );
+  }
+
+  // Persist refreshed tokens so the next command picks them up without
+  // another round-trip.
+  const config = loadConfig();
+  config.oauth = refreshed;
+  saveConfig(config);
+  return refreshed;
+}
+
+/**
+ * Returns a fetch that strips the X-Api-Key header before sending. The SDK
+ * unconditionally builds a request with X-Api-Key, but for OAuth sessions we
+ * want the server to see only the Authorization: Bearer header.
+ */
+function createBearerFetch(): typeof fetch {
+  return async (input, init) => {
+    const headers = new Headers(init?.headers ?? {});
+    if (headers.has('X-Api-Key') && headers.get('X-Api-Key') === '') {
+      headers.delete('X-Api-Key');
+    }
+
+    return fetch(input, {...init, headers});
+  };
 }
