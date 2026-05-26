@@ -28,11 +28,11 @@ export default class Login extends BaseCommand {
       this.log(chalk.dim(`Replacing existing session${existing.user?.email ? ` for ${existing.user.email}` : ''}.`));
     }
 
-    let urlAnnounced = false;
+    const printUrl = flags['print-url'] as boolean;
     const session = await runLoginFlow({
+      noOpenBrowser: printUrl,
       onAuthorizeUrl: (url) => {
-        urlAnnounced = true;
-        if (flags['print-url']) {
+        if (printUrl) {
           this.log('Open this URL in your browser to authenticate:');
         } else {
           this.log('Opening browser to authenticate. If it does not open, visit:');
@@ -41,10 +41,6 @@ export default class Login extends BaseCommand {
         this.log('  ' + url);
       },
     });
-
-    if (!urlAnnounced) {
-      this.log('Login completed.');
-    }
 
     const config = loadConfig();
     config.oauth = session;

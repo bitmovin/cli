@@ -1,8 +1,7 @@
 import {createHash, randomBytes} from 'node:crypto';
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http';
 import {AddressInfo} from 'node:net';
-import {spawn} from 'node:child_process';
-import {platform} from 'node:os';
+import open from 'open';
 import type {OAuthSession} from './config.js';
 
 // OAuth defaults for the Bitmovin CLI. All values can be overridden via env
@@ -56,13 +55,12 @@ export function generatePkcePair(): {verifier: string; challenge: string} {
 }
 
 function openInBrowser(url: string): void {
-  const cmd = platform() === 'darwin' ? 'open' : platform() === 'win32' ? 'cmd' : 'xdg-open';
-  const args = platform() === 'win32' ? ['/c', 'start', '""', url] : [url];
-  try {
-    spawn(cmd, args, {stdio: 'ignore', detached: true}).unref();
-  } catch {
-    // Browser open is best-effort; the URL is also printed for the user.
-  }
+  // Best-effort: the URL is also printed for the user to copy. Use the `open`
+  // package because it handles per-platform quirks (Windows `&` quoting, WSL,
+  // xdg-open vs gnome-open on Linux) that ad-hoc spawns get wrong.
+  open(url).catch(() => {
+    // Swallow — printing the URL is the user-visible fallback.
+  });
 }
 
 interface CallbackResult {
@@ -95,7 +93,7 @@ function startLoopbackServer(expectedState: string, port: number): Promise<{port
       if (error) {
         const description = url.searchParams.get('error_description') ?? '';
         res.writeHead(400, {'Content-Type': 'text/html'}).end(
-          renderPage('Login failed', `Authorization failed: ${escapeHtml(error)}. ${escapeHtml(description)}`),
+          renderPage('Login failed', `Authorization failed: ${error}. ${description}`),
         );
         rejectResult(new Error(`Authorization failed: ${error}${description ? ' — ' + description : ''}`));
         return;
@@ -144,11 +142,13 @@ function startLoopbackServer(expectedState: string, port: number): Promise<{port
   });
 }
 
+// Body is escaped here so callers can't accidentally render unescaped user
+// input. Pass the raw string in — `renderPage` HTML-escapes it.
 function renderPage(title: string, body: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>` +
     `<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem;color:#111}` +
     `h1{font-size:1.25rem;margin-bottom:.5rem}p{color:#555;line-height:1.5}</style>` +
-    `</head><body><h1>${escapeHtml(title)}</h1><p>${body}</p></body></html>`;
+    `</head><body><h1>${escapeHtml(title)}</h1><p>${escapeHtml(body)}</p></body></html>`;
 }
 
 function escapeHtml(s: string): string {
@@ -162,7 +162,11 @@ export interface LoginOptions {
   redirectHost?: string;
   /** When true, skip spawning a browser process — caller is responsible for visiting the URL. */
   noOpenBrowser?: boolean;
+  /** Max time (ms) to wait for the OAuth callback before aborting. Defaults to 5 min. */
+  timeoutMs?: number;
 }
+
+const DEFAULT_LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 
 export async function runLoginFlow(options: LoginOptions = {}): Promise<OAuthSession> {
   const endpoints = resolveEndpoints();
@@ -184,8 +188,30 @@ export async function runLoginFlow(options: LoginOptions = {}): Promise<OAuthSes
   options.onAuthorizeUrl?.(authorizeUrl.toString());
   if (!options.noOpenBrowser) openInBrowser(authorizeUrl.toString());
 
+  // Tear the loopback server down on Ctrl+C so the fixed port isn't left
+  // bound after the process exits.
+  const onSigint = () => {
+    close();
+    process.exit(130);
+  };
+
+  process.once('SIGINT', onSigint);
+
+  const timeoutMs = options.timeoutMs ?? DEFAULT_LOGIN_TIMEOUT_MS;
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(
+        `Login timed out after ${Math.round(timeoutMs / 1000)}s. ` +
+        'Did you complete the browser authorization step? Re-run `bitmovin login`.',
+      ));
+    }, timeoutMs);
+    // Don't keep the event loop alive solely on this timer.
+    timer.unref?.();
+  });
+
   try {
-    const {code} = await result;
+    const {code} = (await Promise.race([result, timeout])) as CallbackResult;
     return await exchangeCodeForToken({
       code,
       verifier,
@@ -193,6 +219,8 @@ export async function runLoginFlow(options: LoginOptions = {}): Promise<OAuthSes
       endpoints,
     });
   } finally {
+    if (timer) clearTimeout(timer);
+    process.removeListener('SIGINT', onSigint);
     close();
   }
 }
@@ -264,6 +292,15 @@ export async function refreshAccessToken(refreshToken: string): Promise<OAuthSes
 }
 
 function tokenResponseToSession(json: TokenResponse): OAuthSession {
+  // The CLI sends Authorization: Bearer unconditionally. Reject anything else
+  // up front so a misconfigured IdP (e.g. DPoP) fails with a clear error
+  // instead of looping on 401s.
+  if (json.token_type && json.token_type.toLowerCase() !== 'bearer') {
+    throw new Error(
+      `Unsupported OAuth token_type "${json.token_type}". The Bitmovin CLI only supports Bearer tokens.`,
+    );
+  }
+
   const expiresAt = typeof json.expires_in === 'number' ? Date.now() + json.expires_in * 1000 : undefined;
   const user = decodeIdTokenClaims(json.id_token);
   return {
@@ -276,6 +313,9 @@ function tokenResponseToSession(json: TokenResponse): OAuthSession {
   };
 }
 
+// Display-only — the email/sub from the ID token is shown in `config show`
+// but never used for any auth decision. The JWT signature is intentionally
+// NOT verified here; don't gate behavior on these claims.
 function decodeIdTokenClaims(idToken?: string): {email?: string; sub?: string} | undefined {
   if (!idToken) return undefined;
   const parts = idToken.split('.');

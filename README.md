@@ -37,13 +37,14 @@ bitmovin logout             # Forget the stored OAuth session
 ```
 
 `bitmovin login` opens a browser for OAuth (PKCE) and stores the resulting
-session in `~/.config/bitmovin/config.json`. Access tokens are refreshed
-silently in the background; you only need to log in again when the refresh
-token is no longer valid. The callback uses a fixed loopback port
-(`http://127.0.0.1:27315/callback`). To target a different IdP set
-`BITMOVIN_OAUTH_ISSUER`, `BITMOVIN_OAUTH_CLIENT_ID`, `BITMOVIN_OAUTH_REDIRECT_PORT`,
-or override individual URLs with `BITMOVIN_OAUTH_AUTHORIZE_URL` and
-`BITMOVIN_OAUTH_TOKEN_URL`.
+session in `~/.config/bitmovin/config.json` with file mode `0600`. Tokens
+are kept as plain JSON on disk (no OS keychain yet — tracked as a follow-up).
+Access tokens are refreshed silently in the background; you only need to log
+in again when the refresh token is no longer valid. The callback uses a fixed
+loopback port (`http://127.0.0.1:27315/callback`). To target a different IdP set
+`BITMOVIN_OAUTH_ISSUER`, `BITMOVIN_OAUTH_CLIENT_ID`, `BITMOVIN_OAUTH_SCOPE`,
+`BITMOVIN_OAUTH_REDIRECT_PORT`, or override individual URLs with
+`BITMOVIN_OAUTH_AUTHORIZE_URL` and `BITMOVIN_OAUTH_TOKEN_URL`.
 
 ## Commands
 
