@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-26
+
 ### Added
 
 - `bitmovin login` and `bitmovin logout` for browser-based OAuth (PKCE). The CLI stores the resulting session in `~/.config/bitmovin/config.json` (mode `0600`), uses `Authorization: Bearer …` when calling the Bitmovin API, and refreshes access tokens silently. Credential resolution priority is now `--api-key` flag > `BITMOVIN_API_KEY` env > stored OAuth session > `api-key` in config. `--print-url` skips opening a browser for headless / SSH use. Endpoints, client ID, scope, and the loopback port are env-overridable (`BITMOVIN_OAUTH_*`).
 - `bitmovin config show` now reports the OAuth user, expiry, and whether a refresh token is present (text + `--json`).
+- `bitmovin skills list / find / add / remove` for installing Bitmovin AI assistant skills from the [`bitmovin/skills`](https://github.com/bitmovin/skills) archive. Skill management delegates to the `npx skills` installer and supports the `pi`, `claude-code`, `codex`, and `gemini-cli` agents via `--agent`.
 
 ## [0.3.0] - 2026-05-07
 
