@@ -64,7 +64,7 @@
     "@oclif/test": "^4.1.17",
     "@types/cli-progress": "^3.11.6",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^22",
+    "@types/node": "^25",
     "eslint": "^10.2.0",
     "oclif": "^4",
     "typescript": "^5.7",
