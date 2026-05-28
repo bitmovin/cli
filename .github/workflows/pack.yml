@@ -66,7 +66,7 @@ jobs:
       - name: Pack Windows .exe (win32-x64 only)
         run: npx oclif pack win --targets=win32-x64
       - name: Upload tarballs + Windows installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bitmovin-cli-tarballs-and-windows
           path: |
@@ -117,7 +117,7 @@ jobs:
             echo
           done
       - name: Upload macOS .pkg installers
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bitmovin-cli-macos
           path: dist/macos/*.pkg
