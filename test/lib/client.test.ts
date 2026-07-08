@@ -68,4 +68,13 @@ describe('getClient with BITMOVIN_API_KEY env var', () => {
     await expect(getClient()).rejects.toThrow('No credentials configured');
     expect(lastConstructorArgs).toBeUndefined();
   });
+
+  it('overrides the SDK X-Api-Client headers with CLI identification', async () => {
+    process.env.BITMOVIN_API_KEY = 'env-var-key';
+    const {getClient} = await import('../../src/lib/client.js');
+    await getClient();
+    const pkg = await import('../../package.json');
+    expect(lastConstructorArgs.headers['X-Api-Client']).toBe('bitmovin-cli');
+    expect(lastConstructorArgs.headers['X-Api-Client-Version']).toBe(pkg.default.version);
+  });
 });
