@@ -1,3 +1,4 @@
+import {createRequire} from 'node:module';
 import BitmovinApiSdk from '@bitmovin/api-sdk';
 import {loadConfig, saveConfig, type OAuthSession} from './config.js';
 import {resolveAuth} from './api-key.js';
@@ -37,6 +38,15 @@ export interface ApiClient {
 const SdkModule = BitmovinApiSdk as unknown as {default?: BitmovinApiConstructor};
 const BitmovinApi: BitmovinApiConstructor = SdkModule.default ?? (BitmovinApiSdk as unknown as BitmovinApiConstructor);
 
+// Overrides the SDK's default X-Api-Client headers (bitmovin-api-sdk-javascript)
+// so backend usage metrics attribute requests to the CLI itself.
+const {version: CLI_VERSION} = createRequire(import.meta.url)('../../package.json') as {version: string};
+
+const CLIENT_ID_HEADERS = {
+  'X-Api-Client': 'bitmovin-cli',
+  'X-Api-Client-Version': CLI_VERSION,
+};
+
 const NO_CREDENTIALS_MESSAGE =
   'No credentials configured.\n\n' +
   '  Run one of:\n' +
@@ -60,6 +70,7 @@ export async function getClient(apiKeyOverride?: string): Promise<ApiClient> {
     return new BitmovinApi({
       apiKey: auth.value,
       ...(config.tenantOrgId && {tenantOrgId: config.tenantOrgId}),
+      headers: {...CLIENT_ID_HEADERS},
     });
   }
 
@@ -72,6 +83,7 @@ export async function getClient(apiKeyOverride?: string): Promise<ApiClient> {
     apiKey: 'oauth',
     ...(config.tenantOrgId && {tenantOrgId: config.tenantOrgId}),
     headers: {
+      ...CLIENT_ID_HEADERS,
       'X-Api-Key': '',
       Authorization: `Bearer ${session.accessToken}`,
     },

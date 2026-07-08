@@ -45,6 +45,13 @@ describe('OAuth client → SDK wiring sends Bearer, not X-Api-Key', () => {
     expect(lastConstructorConfig.headers.Authorization).toBe('Bearer access-token-xyz');
   });
 
+  it('sends CLI identification headers alongside the Bearer token', async () => {
+    const {getClient} = await import('../../src/lib/client.js');
+    await getClient();
+    expect(lastConstructorConfig.headers['X-Api-Client']).toBe('bitmovin-cli');
+    expect(lastConstructorConfig.headers['X-Api-Client-Version']).toBeTruthy();
+  });
+
   it('strips X-Api-Key from outgoing requests when the SDK reinserts it', async () => {
     const {getClient} = await import('../../src/lib/client.js');
     await getClient();
