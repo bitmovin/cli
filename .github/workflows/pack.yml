@@ -13,18 +13,41 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - name: Verify CI succeeded on tagged commit
+      - name: Wait for CI to succeed on tagged commit
         env:
           GH_TOKEN: ${{ github.token }}
+          # The tag push and the branch push that triggers ci.yml race: this
+          # gate fires immediately on tag push, while the build-and-test checks
+          # for the same SHA are still queued/in_progress. Poll until they reach
+          # a terminal state instead of reading their (null) conclusion too early.
+          TIMEOUT_SECONDS: '900'
+          POLL_SECONDS: '15'
         run: |
-          set -e
-          conclusions=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" \
-            --jq '[.check_runs[] | select(.name | startswith("build-and-test")) | .conclusion]')
+          set -euo pipefail
+          deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
+          while :; do
+            runs=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" \
+              --jq '[.check_runs[] | select(.name | startswith("build-and-test")) | {name, status, conclusion}]')
+            total=$(echo "$runs" | jq 'length')
+            pending=$(echo "$runs" | jq '[.[] | select(.status != "completed")] | length')
+            if [ "$total" -gt 0 ] && [ "$pending" -eq 0 ]; then
+              break
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              if [ "$total" -eq 0 ]; then
+                echo "::error::No build-and-test check runs found for ${{ github.sha }} within ${TIMEOUT_SECONDS}s — was CI ever triggered?"
+              else
+                echo "::error::Timed out after ${TIMEOUT_SECONDS}s waiting for build-and-test checks to complete on ${{ github.sha }}"
+                echo "$runs" | jq .
+              fi
+              exit 1
+            fi
+            echo "Waiting for build-and-test checks on ${{ github.sha }} (found ${total}, ${pending} not yet completed)…"
+            sleep "$POLL_SECONDS"
+          done
+
+          conclusions=$(echo "$runs" | jq -c '[.[].conclusion]')
           echo "build-and-test conclusions on ${{ github.sha }}: $conclusions"
-          if [ "$conclusions" = "[]" ]; then
-            echo "::error::No build-and-test check runs found for ${{ github.sha }} — was CI ever triggered?"
-            exit 1
-          fi
           if echo "$conclusions" | grep -qvE '^\[("success",?\s*)+\]$'; then
             echo "::error::At least one build-and-test check on ${{ github.sha }} did not succeed"
             exit 1
