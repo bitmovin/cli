@@ -28,178 +28,50 @@ bitmovin config set organization ORG_ID
 bitmovin encoding templates start ./my-encoding.yaml --watch
 ```
 
-### Auth
-
-```bash
-bitmovin login              # Browser-based OAuth (PKCE)
-bitmovin login --print-url  # Print authorize URL instead of opening a browser (useful over SSH)
-bitmovin logout             # Forget the stored OAuth session
-```
-
-`bitmovin login` opens a browser for OAuth (PKCE) and stores the resulting
-session in `~/.config/bitmovin/config.json` with file mode `0600`. Tokens
-are kept as plain JSON on disk (no OS keychain yet — tracked as a follow-up).
-Access tokens are refreshed silently in the background; you only need to log
-in again when the refresh token is no longer valid. The callback uses a fixed
-loopback port (`http://127.0.0.1:27315/callback`). To target a different IdP set
-`BITMOVIN_OAUTH_ISSUER`, `BITMOVIN_OAUTH_CLIENT_ID`, `BITMOVIN_OAUTH_SCOPE`,
-`BITMOVIN_OAUTH_REDIRECT_PORT`, or override individual URLs with
-`BITMOVIN_OAUTH_AUTHORIZE_URL` and `BITMOVIN_OAUTH_TOKEN_URL`.
-
 ## Commands
 
-### AI Assistant Skills
+| Command | What it does |
+|---------|--------------|
+| `bitmovin login` / `logout` | Browser-based OAuth (PKCE) sign-in |
+| `bitmovin agents setup` | Set up AI coding agents with Bitmovin skills, plugins, and the MCP server |
+| `bitmovin skills …` | Install individual AI assistant skills |
+| `bitmovin config …` | API key, organization, and defaults |
+| `bitmovin encoding …` | Templates, jobs, inputs/outputs, codecs, manifests, stats |
+| `bitmovin player …` | Player licenses, domains, analytics linking |
+| `bitmovin analytics …` | Analytics licenses and domains |
+| `bitmovin account info` | Account information |
 
-Install and manage Bitmovin AI assistant skills from [github.com/bitmovin/skills](https://github.com/bitmovin/skills). These commands delegate to the open [`skills`](https://www.npmjs.com/package/skills) installer.
+Every command documents itself with `--help`. The full command reference with
+examples lives in [docs/commands.md](docs/commands.md), and `bitmovin skill`
+prints it as markdown for AI assistants.
+
+## Use Bitmovin from your AI agent
+
+One command connects your AI coding agents to Bitmovin — it installs the
+[Bitmovin skills](https://github.com/bitmovin/skills) (as plugins on Claude
+Code), and hooks up the [Bitmovin MCP server](https://mcp.bitmovin.com) so
+your agent can query encodings, play streams, and analyze viewer data
+directly:
 
 ```bash
-bitmovin skills list                  # List available Bitmovin skills
-bitmovin skills add --skill bitmovin  # Install a specific skill
-bitmovin skills add --all             # Install all Bitmovin skills
-bitmovin skills remove --skill bitmovin
+bitmovin agents setup                       # Interactive wizard, detects installed agents
+bitmovin agents setup --all-agents --yes    # Non-interactive
+bitmovin agents setup --dry-run             # Show what would happen
 ```
 
-Use `--agent` with agent IDs supported by `npx skills`, for example `pi`, `claude-code`, `codex`, or `gemini-cli`.
+Supported agents: `claude-code`, `codex`, `gemini-cli`, `cursor`, and `pi`.
+Re-running is safe, modified config files are backed up to `<file>.bak`, and
+[docs/commands.md](docs/commands.md#ai-agent-setup) has the per-agent details.
 
-### Config
+## Scripting
 
-```bash
-bitmovin config set api-key <key>              # Set API key
-bitmovin config set organization <id>          # Set active organization
-bitmovin config set default-region <region>    # Set default cloud region
-bitmovin config show                           # Show current config
-bitmovin config list organizations             # List available organizations
-```
-
-### Encoding — Templates
-
-The recommended way to encode. Define your entire workflow in a single [YAML template](https://developer.bitmovin.com/encoding/docs/encoding-templates).
+Human-readable tables when interactive; `--json` and `--jq` for automation
+(design inspired by [gh](https://github.com/cli/cli) — data to stdout, status
+to stderr, colors off when piped):
 
 ```bash
-bitmovin encoding templates start ./template.yaml --watch   # Start from file
-bitmovin encoding templates start --id <id> --watch         # Start stored template
-bitmovin encoding templates create ./template.yaml --name "Standard VOD"
-bitmovin encoding templates list
-bitmovin encoding templates get <id>
-bitmovin encoding templates delete <id>
-bitmovin encoding templates validate ./template.yaml        # Validate against schema
-```
-
-### Encoding — Jobs
-
-```bash
-bitmovin encoding jobs list [--status running|finished|error]
-bitmovin encoding jobs get <id>
-bitmovin encoding jobs status <id> [--watch]    # Live progress bar with --watch
-bitmovin encoding jobs start <id> [--watch]
-bitmovin encoding jobs stop <id>
-bitmovin encoding jobs delete <id>
-bitmovin encoding jobs live <id>                # Encoder IP, stream keys, SRT inputs
-```
-
-### Encoding — Inputs & Outputs
-
-```bash
-bitmovin encoding inputs list [--type s3|gcs|http|https|azure]
-bitmovin encoding inputs get <id>
-bitmovin encoding inputs create s3 --name "Prod" --bucket my-bucket --access-key AK --secret-key SK
-bitmovin encoding inputs create gcs --name "Staging" --bucket my-bucket --access-key AK --secret-key SK
-bitmovin encoding inputs create https --name "CDN" --host storage.example.com
-bitmovin encoding inputs delete <id>
-
-bitmovin encoding outputs list [--type s3|gcs|azure]
-bitmovin encoding outputs get <id>
-bitmovin encoding outputs create s3 --name "CDN Out" --bucket my-bucket --access-key AK --secret-key SK
-bitmovin encoding outputs create gcs --name "GCS Out" --bucket my-bucket --access-key AK --secret-key SK
-bitmovin encoding outputs delete <id>
-```
-
-### Encoding — Codec Configs
-
-```bash
-bitmovin encoding codecs list [--type video|audio] [--codec h264|h265|av1|aac|opus]
-bitmovin encoding codecs get <id>              # auto-detects codec type
-bitmovin encoding codecs create h264 --name "1080p" --bitrate 4800000 --height 1080 --profile HIGH
-bitmovin encoding codecs create h265 --name "4K HEVC" --bitrate 8000000 --height 2160
-bitmovin encoding codecs create aac --name "Stereo 128k" --bitrate 128000
-bitmovin encoding codecs delete <id>            # auto-detects codec type
-```
-
-### Encoding — Manifests & Stats
-
-```bash
-bitmovin encoding manifests list [--type dash|hls|smooth]
-bitmovin encoding manifests get <id> --type dash
-bitmovin encoding manifests delete <id> --type dash
-
-bitmovin encoding stats [--from 2024-01-01] [--to 2024-03-31]
-```
-
-### Player
-
-```bash
-bitmovin player licenses list
-bitmovin player licenses get <id>
-bitmovin player licenses create --name "Production"
-bitmovin player licenses update <id> --name "New Name"
-
-bitmovin player domains list <license-id-or-key-or-name>
-bitmovin player domains add <license-id-or-key-or-name> --url https://example.com
-bitmovin player domains remove <license-id-or-key-or-name> <domain-id>
-
-bitmovin player analytics activate <license-id> --analytics-key <key>
-bitmovin player analytics deactivate <license-id>
-```
-
-### Analytics
-
-```bash
-bitmovin analytics licenses list
-bitmovin analytics licenses get <id>
-bitmovin analytics licenses create --name "Prod Analytics" [--timezone Europe/Vienna]
-bitmovin analytics licenses update <id> --name "New Name" [--ignore-dnt] [--timezone UTC]
-
-bitmovin analytics domains list <license-id-or-key-or-name>
-bitmovin analytics domains add <license-id-or-key-or-name> --url https://example.com
-bitmovin analytics domains remove <license-id-or-key-or-name> <domain-id>
-```
-
-### Account
-
-```bash
-bitmovin account info
-```
-
-## Output Formats
-
-By default, the CLI outputs human-readable tables when used interactively. For scripting and automation, use `--json` and `--jq`:
-
-```bash
-# JSON output
-bitmovin encoding jobs list --json
-
-# Filter with jq
 bitmovin encoding jobs list --json --jq '.[].id'
-bitmovin player licenses list --jq '[.[] | {name, licenseKey}]'
-
-# Pipe-friendly: colors and spinners are automatically disabled when stdout is not a TTY
-bitmovin encoding jobs list | head -5
 ```
-
-**Design principles** (inspired by [gh](https://github.com/cli/cli)):
-- `--json` outputs structured JSON to stdout
-- `--jq` filters JSON with [jq](https://jqlang.github.io/jq/) expressions (implies `--json`)
-- Status messages always go to stderr, data to stdout
-- Colors and spinners are disabled when piped
-
-## Global Flags
-
-| Flag | Description |
-|------|-------------|
-| `--json` / `-j` | Output JSON to stdout |
-| `--jq <expr>` | Filter JSON with a jq expression |
-| `--api-key <key>` | Override the configured API key |
-| `--quiet` / `-q` | Suppress non-essential output |
 
 ## Configuration
 
@@ -207,11 +79,8 @@ Config is stored in `~/.config/bitmovin/config.json` (mode `0600`). You can also
 
 **Credential priority:** `--api-key` flag > `BITMOVIN_API_KEY` env var > stored OAuth session > `api-key` in config file.
 
-| Key | Description |
-|-----|-------------|
-| `api-key` | Your Bitmovin API key ([get one here](https://dashboard.bitmovin.com/account)) |
-| `organization` | Active tenant organization ID |
-| `default-region` | Default cloud region for encodings |
+See [docs/commands.md](docs/commands.md#oauth-details) for OAuth internals
+(token storage, silent refresh, custom IdP overrides).
 
 ## License
 

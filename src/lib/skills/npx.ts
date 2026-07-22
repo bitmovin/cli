@@ -5,6 +5,8 @@ const BITMOVIN_SKILLS_REPO = 'bitmovin/skills';
 
 export type SkillsAddOptions = {
   skill?: string;
+  /** multiple skills, emitted as repeated --skill flags; takes precedence over `skill` */
+  skills?: string[];
   all?: boolean;
   agent?: string;
   ref?: string;
@@ -21,7 +23,8 @@ export function buildSkillsListArgs(ref?: string): string[] {
 
 export function buildSkillsAddArgs(options: SkillsAddOptions): string[] {
   const args = baseAddArgs(options.ref, ['--global', '--copy', '--yes']);
-  args.push('--skill', options.all ? '*' : (options.skill ?? 'bitmovin'));
+  const skills = options.all ? ['*'] : (options.skills ?? [options.skill ?? 'bitmovin']);
+  for (const skill of skills) args.push('--skill', skill);
   appendAgents(args, options.agent);
   return args;
 }
