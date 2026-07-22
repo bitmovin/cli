@@ -48,6 +48,7 @@
   },
   "dependencies": {
     "@bitmovin/api-sdk": "^1.260.0",
+    "@inquirer/prompts": "^8.5.2",
     "@oclif/core": "^4",
     "@oclif/plugin-autocomplete": "^3.2.43",
     "ajv": "^8.17.1",
@@ -56,7 +57,8 @@
     "cli-table3": "^0.6.5",
     "js-yaml": "^4.1.0",
     "open": "^10.2.0",
-    "ora": "^8.1.1"
+    "ora": "^8.1.1",
+    "smol-toml": "^1.7.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -96,6 +98,9 @@
     },
     "topicSeparator": " ",
     "topics": {
+      "agents": {
+        "description": "Set up AI coding agents with Bitmovin skills, plugins, and MCP"
+      },
       "skills": {
         "description": "Install and manage Bitmovin AI assistant skills"
       },

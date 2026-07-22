@@ -16,6 +16,15 @@ bitmovin config list organizations
 bitmovin config set organization <org-id>
 \`\`\`
 
+## AI Agent Setup
+
+\`\`\`bash
+bitmovin agents setup                              # Interactive wizard: skills, plugins, MCP per agent
+bitmovin agents setup --all-agents --yes           # All detected agents, no prompts
+bitmovin agents setup --agent claude-code --yes    # Agents: claude-code, codex, gemini-cli, cursor, pi
+bitmovin agents setup --dry-run                    # Show planned steps without changing anything
+\`\`\`
+
 ## Encoding
 
 ### Templates (recommended workflow)
