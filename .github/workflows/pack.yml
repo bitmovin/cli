@@ -172,7 +172,7 @@ jobs:
           done | LC_ALL=C sort -k2 > SHA256SUMS
           cat SHA256SUMS
       - name: Create draft release with installer assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           draft: true
           generate_release_notes: true
