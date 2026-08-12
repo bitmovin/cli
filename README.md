@@ -1,4 +1,4 @@
-# Bitmovin CLI (Public Beta)
+# Bitmovin CLI
 
 The official command-line interface for [Bitmovin](https://bitmovin.com). Manage encodings, player licenses, analytics, and more — from your terminal.
 
