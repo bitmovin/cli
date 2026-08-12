@@ -74,7 +74,7 @@ describe('support tickets list', () => {
     cap.restore();
 
     expect(JSON.parse(cap.output())[0].caseId).toBe(123_456);
-    expect(apiRequest).toHaveBeenCalledWith('/account/zendesk/tickets', expect.objectContaining({tenantOrgId: 'config-org'}));
+    expect(apiRequest).toHaveBeenCalledWith('/support/tickets', expect.objectContaining({tenantOrgId: 'config-org'}));
     const options = apiRequest.mock.calls[0][1] as {query: Record<string, unknown>};
     expect(options.query).toMatchObject({limit: 25, offset: 0});
   });
@@ -136,7 +136,7 @@ describe('support tickets get', () => {
     await Cmd.run(['123456']);
     cap.restore();
 
-    expect(apiRequest).toHaveBeenCalledWith('/account/zendesk/tickets/123456', expect.objectContaining({tenantOrgId: 'config-org'}));
+    expect(apiRequest).toHaveBeenCalledWith('/support/tickets/123456', expect.objectContaining({tenantOrgId: 'config-org'}));
     const out = cap.output();
     expect(out).toContain('Encoding fails');
     expect(out).toContain('Bitmovin Support');
@@ -192,7 +192,7 @@ describe('support tickets create', () => {
 
     expect(apiRequest).toHaveBeenCalledTimes(1);
     const [path, options] = apiRequest.mock.calls[0] as [string, {method: string; body: Record<string, unknown>; tenantOrgId?: string}];
-    expect(path).toBe('/account/zendesk/tickets');
+    expect(path).toBe('/support/tickets');
     expect(options.method).toBe('POST');
     expect(options.tenantOrgId).toBe('config-org');
     // organizationId must match the X-Tenant-Org-Id the request is sent with
@@ -244,9 +244,9 @@ describe('support tickets comment', () => {
     cap.restore();
 
     const [getPath] = apiRequest.mock.calls[0] as [string];
-    expect(getPath).toBe('/account/zendesk/tickets/123456');
+    expect(getPath).toBe('/support/tickets/123456');
     const [postPath, options] = apiRequest.mock.calls[1] as [string, {method: string; body: Record<string, unknown>; tenantOrgId?: string}];
-    expect(postPath).toBe('/account/zendesk/tickets/123456/comments');
+    expect(postPath).toBe('/support/tickets/123456/comments');
     expect(options.method).toBe('POST');
     expect(options.tenantOrgId).toBe('config-org');
     expect(options.body).toEqual({htmlBody: 'Still broken<br>\non 8.150.0', updatedStamp: '2026-08-02T11:00:00.000Z'});

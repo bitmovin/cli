@@ -3,7 +3,7 @@ import {getAuthHeaders} from './client.js';
 /**
  * Minimal REST client for Bitmovin API endpoints that the generated
  * `@bitmovin/api-sdk` does not expose yet (currently the support-ticket
- * endpoints under `/account/zendesk/tickets`). It reuses the CLI's credential
+ * endpoints under `/support/tickets`). It reuses the CLI's credential
  * resolution (`getAuthHeaders`) so the API key / OAuth precedence, silent token
  * refresh, and `X-Api-Client` identification stay identical to SDK calls.
  *

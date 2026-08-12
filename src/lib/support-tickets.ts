@@ -1,14 +1,20 @@
 import {apiRequest} from './rest.js';
 
 /**
- * Support-ticket API (`/account/zendesk/tickets`). Not part of the generated
+ * Support-ticket API (`/support/tickets`). Not part of the generated
  * `@bitmovin/api-sdk`, so these calls go through the small REST helper in
  * `rest.ts` — which reuses the CLI's credential resolution.
  *
  * Every call takes the resolved tenant organization id, sent as
  * `X-Tenant-Org-Id`, so a ticket can be listed/created for a sub-organization.
+ *
+ * NOTE on the path: the older `/account/zendesk/tickets` route is marked
+ * deprecated in `bitmovin-open-api` ("Use `/support/tickets` instead").
+ * support-service serves both from one controller — `@RequestMapping("/tickets",
+ * "/public/tickets")` — behind the two gateway routes, so they are the same
+ * handlers and the responses are identical. We use the non-deprecated one.
  */
-const TICKETS_PATH = '/account/zendesk/tickets';
+const TICKETS_PATH = '/support/tickets';
 
 export const TICKET_CATEGORIES = ['encoding', 'player', 'analytics', 'other'] as const;
 export const TICKET_STATUSES = ['new', 'open', 'pending', 'hold', 'solved', 'closed', 'deleted'] as const;
