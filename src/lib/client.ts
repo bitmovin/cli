@@ -91,6 +91,30 @@ export async function getClient(apiKeyOverride?: string): Promise<ApiClient> {
   });
 }
 
+/**
+ * Resolves the credential headers a request must carry, using the same
+ * precedence as {@link getClient} (flag > env > OAuth session > config file)
+ * and refreshing an expired OAuth session on the way.
+ *
+ * Only for endpoints the generated SDK does not cover (see `rest.ts`) —
+ * anything the SDK exposes should go through {@link getClient}.
+ */
+export async function getAuthHeaders(apiKeyOverride?: string): Promise<Record<string, string>> {
+  const config = loadConfig();
+  const auth = resolveAuth(config, apiKeyOverride);
+
+  if (auth.kind === 'none' || (auth.kind === 'api-key' && !auth.value)) {
+    throw new Error(NO_CREDENTIALS_MESSAGE);
+  }
+
+  if (auth.kind === 'api-key') {
+    return {...CLIENT_ID_HEADERS, 'X-Api-Key': auth.value};
+  }
+
+  const session = await ensureFreshSession(auth.session);
+  return {...CLIENT_ID_HEADERS, Authorization: `Bearer ${session.accessToken}`};
+}
+
 async function ensureFreshSession(session: OAuthSession): Promise<OAuthSession> {
   if (!isExpired(session)) return session;
 

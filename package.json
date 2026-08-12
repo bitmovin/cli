@@ -163,6 +163,15 @@
       },
       "account": {
         "description": "Account information"
+      },
+      "account:organizations": {
+        "description": "Organizations and sub-organizations"
+      },
+      "support": {
+        "description": "Bitmovin support"
+      },
+      "support:tickets": {
+        "description": "Support ticket management"
       }
     }
   }

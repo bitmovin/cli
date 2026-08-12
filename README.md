@@ -39,7 +39,16 @@ bitmovin encoding templates start ./my-encoding.yaml --watch
 | `bitmovin encoding …` | Templates, jobs, inputs/outputs, codecs, manifests, stats |
 | `bitmovin player …` | Player licenses, domains, analytics linking |
 | `bitmovin analytics …` | Analytics licenses and domains |
-| `bitmovin account info` | Account information |
+| `bitmovin account …` | Account information, organizations and sub-organizations |
+| `bitmovin support tickets …` | List, read, file, and comment on Bitmovin support tickets |
+
+### Support tickets
+
+`bitmovin support tickets create` and `bitmovin support tickets comment` write to
+a **real** support ticket that Bitmovin support engineers see and that cannot be
+withdrawn via the API. Both print the exact payload and require an explicit
+confirmation; `--yes` skips the prompt for scripting. `--organization <org-id>`
+targets a sub-organization (list them with `bitmovin account organizations list`).
 
 Every command documents itself with `--help`. The full command reference with
 examples lives in [docs/commands.md](docs/commands.md), and `bitmovin skill`

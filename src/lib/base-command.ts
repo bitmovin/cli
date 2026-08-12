@@ -44,7 +44,7 @@ export abstract class BaseCommand extends Command {
     }
   }
 
-  protected override async catch(err: Error & {httpStatusCode?: number; errorCode?: number; developerMessage?: string; requestId?: string}): Promise<void> {
+  protected override async catch(err: Error & {httpStatusCode?: number; errorCode?: number | string; developerMessage?: string; requestId?: string; tenantOrgId?: string}): Promise<void> {
     // Handle Bitmovin API errors
     if (err.httpStatusCode) {
       const config = loadConfig();
@@ -59,15 +59,18 @@ export abstract class BaseCommand extends Command {
           lines.push('    bitmovin config set api-key <your-api-key>  # API key');
           lines.push('  Get an API key at https://dashboard.bitmovin.com/account');
           break;
-        case 403:
+        case 403: {
           lines.push(chalk.red('Access denied.'));
           lines.push('');
-          if (config.tenantOrgId) {
-            lines.push(`  Active organization: ${config.tenantOrgId}`);
-            lines.push('  This organization may not have access to this resource.');
+          // A request scoped to an organization via --organization reports it on
+          // the error, so the message names that org rather than the configured one.
+          const orgId = err.tenantOrgId ?? config.tenantOrgId;
+          if (orgId) {
+            lines.push(`  Organization: ${orgId}`);
+            lines.push('  Your credentials have no access grant for this organization, or it cannot access this resource.');
             lines.push('');
-            lines.push('  Try switching organizations:');
-            lines.push('    bitmovin config list organizations');
+            lines.push('  Check which organizations you can use:');
+            lines.push('    bitmovin account organizations list');
             lines.push('    bitmovin config set organization <id>');
           } else {
             lines.push('  Your API key does not have permission for this resource.');
@@ -75,7 +78,10 @@ export abstract class BaseCommand extends Command {
             lines.push('    bitmovin config list organizations');
             lines.push('    bitmovin config set organization <id>');
           }
+
           break;
+        }
+
         case 404:
           lines.push(chalk.red('Resource not found.'));
           if (err.developerMessage) {

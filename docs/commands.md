@@ -11,6 +11,7 @@ for AI assistants.
 - [Player](#player)
 - [Analytics](#analytics)
 - [Account](#account)
+- [Support](#support)
 - [Output Formats](#output-formats)
 - [OAuth Details](#oauth-details)
 
@@ -172,6 +173,85 @@ bitmovin analytics domains remove <license-id-or-key-or-name> <domain-id>
 ```bash
 bitmovin account info
 ```
+
+### Organizations
+
+Lists every organization your credentials can see — root organizations and their
+sub-organizations in one listing, each row carrying `type`
+(`ROOT_ORGANIZATION` / `SUB_ORGANIZATION`), `parentId`, and whether it is the
+`active` one (the organization from `bitmovin config set organization`).
+Sub-organizations are listed directly beneath their parent.
+
+```bash
+bitmovin account organizations list                    # Everything, parent-first
+bitmovin account organizations list --type root        # Only root organizations
+bitmovin account organizations list --type sub         # Only sub-organizations
+bitmovin account organizations list --parent <org-id>  # Only that parent's sub-organizations
+bitmovin account organizations list --json --jq '.[] | select(.parentId != null) | .id'
+```
+
+The hierarchy is derived from the `parentId` of the flat organization listing.
+The API's per-organization `sub-organizations` endpoint is deliberately not used:
+it answers `1001 An organization with the given id does not exist` for
+organization ids that the listing plainly returns.
+
+## Support
+
+Support tickets filed with Bitmovin support (the same tickets you see in the
+[dashboard](https://dashboard.bitmovin.com)).
+
+```bash
+bitmovin support tickets list
+bitmovin support tickets list --status open,pending --sort createdAt:DESC
+bitmovin support tickets list --category encoding --severity high,medium
+bitmovin support tickets list --search "encoding fails"
+bitmovin support tickets list --limit 50 --offset 50
+
+bitmovin support tickets get <case-id>
+
+bitmovin support tickets create --category encoding \
+  --subject "Encoding stuck at 40%" --body "Encoding abc123 does not progress." \
+  --encoding-id abc123
+
+bitmovin support tickets comment <case-id> --body "Still reproducible on 8.150.0."
+```
+
+**Creating a ticket and commenting are irreversible.** Both commands print the
+exact payload, warn that Bitmovin support engineers will see it and that it
+cannot be withdrawn via the API, and then ask for an explicit confirmation.
+`--yes` (alias `--confirm`) skips the prompt and is **required** for
+non-interactive use — without a TTY, or in `--json` mode, the commands refuse to
+send anything instead of silently filing a ticket.
+
+| Flag | Applies to | Description |
+|------|-----------|-------------|
+| `--organization <org-id>` (alias `--tenant-org`) | all | Organization to act on, sent as `X-Tenant-Org-Id`. Defaults to `bitmovin config set organization`. For `create`, the body's `organizationId` is always set to the same value — the API rejects a mismatch. |
+| `--body <text>` / `--body-file <path>` | `create`, `comment` | Ticket / comment text, inline or from a file. |
+| `--html` | `comment` | Send the comment as HTML. By default plain text is escaped and its line breaks are preserved. |
+| `--yes` / `-y` | `create`, `comment` | Confirm non-interactively. |
+| `--limit` / `--offset` | `list` | Page size (1–100) and offset. The offset must be `0` or a multiple of `--limit`; other values make the API silently return an earlier page, so the CLI rejects them. |
+| `--status`, `--category`, `--priority`, `--severity` | `list` | Comma-separated filters. Status: `new, open, pending, hold, solved, closed, deleted`. Category: `encoding, player, analytics, other`. Priority: `blocker, high, medium, low`. Severity: `high, medium, low, minor`. |
+| `--search <text>` | `list` | Full-text search, max 100 characters, letters/digits/spaces only (the API rejects punctuation). |
+| `--sort <expr>` | `list` | `createdAt` or `modifiedAt`, optionally `:ASC` / `:DESC`. |
+
+`create` requires `--category` (`encoding`, `player`, `analytics`, `other`) and a
+body. Some fields are category-gated: `--encoding-id` requires
+`--category encoding`, while `--license` and `--page-url` require
+`--category player` or `--category analytics`. Run
+`bitmovin support tickets create --help` for the full field list
+(`--platform`, `--sdk-version`, `--os-details`, `--device-details`,
+`--request-type`, `--reproducible-reliably`, …).
+
+`comment` posts a **public** reply. It first reads the ticket to obtain its
+`modifiedAt` and sends it as the required `updatedStamp`, which is how the API
+detects a concurrent update — so you never have to pass a timestamp yourself.
+
+If a sub-organization is not granted to your credentials, the API answers
+`1003 Access denied`; the CLI reports which organization was targeted and points
+at `bitmovin account organizations list`.
+
+Attachments (`uploads`) are not supported by the CLI yet — use the dashboard for
+those.
 
 ## Output Formats
 

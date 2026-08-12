@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `bitmovin account organizations list` shows every visible organization with its `type` (`ROOT_ORGANIZATION` / `SUB_ORGANIZATION`), `parentId`, and whether it is the active one, ordering sub-organizations directly under their parent. `--type root|sub` and `--parent <org-id>` narrow the listing.
+- `bitmovin support tickets list | get | create | comment` for Bitmovin support tickets. `--organization <org-id>` (alias `--tenant-org`) scopes any of them to a sub-organization via `X-Tenant-Org-Id`, and `create` always sends a body `organizationId` matching that header because the API rejects a mismatch.
+  - `create` and `comment` are irreversible: both print the exact payload, state that Bitmovin support engineers will see it and that it cannot be withdrawn via the API, and require an explicit confirmation. `--yes` / `--confirm` skips the prompt and is required for non-interactive use — without a TTY (or in `--json` mode) the commands refuse to send instead of silently filing a ticket.
+  - `comment` reads the ticket's `modifiedAt` and sends it as the API-required `updatedStamp` collision stamp, so callers never see the misleading `1004 … Check your JSON syntax` error that a missing stamp produces.
+  - `list` rejects an `--offset` that is not `0` or a multiple of `--limit` (the API silently serves an earlier page otherwise), plus invalid `--search` text, filter values, and `--sort` expressions, before making a request.
+
+### Changed
+
+- `bitmovin config list organizations` now derives sub-organizations from the `parentId` of the flat organization listing instead of calling the per-organization `sub-organizations` endpoint, which reports `1001 An organization with the given id does not exist` for organization ids that the listing returns. Output shape is unchanged.
+- The `403 Access denied` hint now names the organization the failed request was actually scoped to (including one passed via `--organization`) and points at `bitmovin account organizations list`.
+
 ## [0.4.0] - 2026-05-26
 
 ### Added
