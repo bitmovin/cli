@@ -2,8 +2,6 @@
 
 The official command-line interface for [Bitmovin](https://bitmovin.com). Manage encodings, player licenses, analytics, and more — from your terminal.
 
-> **Public Beta** — This CLI is under active development. Commands and flags may change. Feedback and contributions are welcome!
-
 ## Install
 
 ```bash
