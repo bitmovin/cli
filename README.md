@@ -46,9 +46,12 @@ bitmovin encoding templates start ./my-encoding.yaml --watch
 
 `bitmovin support tickets create` and `bitmovin support tickets comment` write to
 a **real** support ticket that Bitmovin support engineers see and that cannot be
-withdrawn via the API. Both print the exact payload and require an explicit
-confirmation; `--yes` skips the prompt for scripting. `--organization <org-id>`
-targets a sub-organization (list them with `bitmovin account organizations list`).
+withdrawn via the API. Both print the exact payload to stderr — including under
+`--json`, so a scripted run still records what was filed — and require an explicit
+confirmation; `--yes` skips the prompt for scripting. The ticket is filed as the
+user behind your credentials, whose name and email appear on it.
+`--organization <org-id>` targets a sub-organization (list them with
+`bitmovin account organizations list`).
 
 Every command documents itself with `--help`. The full command reference with
 examples lives in [docs/commands.md](docs/commands.md), and `bitmovin skill`

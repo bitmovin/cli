@@ -79,6 +79,42 @@ describe('support tickets list', () => {
     expect(options.query).toMatchObject({limit: 25, offset: 0});
   });
 
+  it('does not present the total as exact when the API prioritises pending tickets', async () => {
+    // With no --sort and no filter the API pulls tickets awaiting a customer reply
+    // to the front, and its totalCount then counts only those — so reporting it as
+    // the grand total would understate the org's tickets.
+    apiRequest.mockResolvedValue({items: [ticket], totalCount: 40});
+    const cap = capture();
+    const {default: Cmd} = await import('../../src/commands/support/tickets/list.js');
+    await Cmd.run([]);
+    cap.restore();
+
+    expect(cap.output()).toContain('Showing 1-1');
+    expect(cap.output()).not.toContain('of 40');
+    expect(cap.output()).toContain('--sort createdAt:DESC');
+  });
+
+  it('reports an exact total once a sort or filter pins the ordering', async () => {
+    apiRequest.mockResolvedValue({items: [ticket], totalCount: 40});
+    const cap = capture();
+    const {default: Cmd} = await import('../../src/commands/support/tickets/list.js');
+    await Cmd.run(['--sort', 'createdAt:DESC']);
+    cap.restore();
+
+    expect(cap.output()).toContain('Showing 1-1 of 40.');
+  });
+
+  it('normalizes filter spacing the API would reject', async () => {
+    apiRequest.mockResolvedValue({items: [], totalCount: 0});
+    const cap = capture();
+    const {default: Cmd} = await import('../../src/commands/support/tickets/list.js');
+    await Cmd.run(['--status', 'open, pending', '--json']);
+    cap.restore();
+
+    const options = apiRequest.mock.calls[0][1] as {query: Record<string, unknown>};
+    expect(options.query.status).toBe('open,pending');
+  });
+
   it('targets a sub-organization with --organization and passes filters through', async () => {
     apiRequest.mockResolvedValue({items: [], totalCount: 0});
     const cap = capture();
@@ -142,6 +178,53 @@ describe('support tickets get', () => {
     expect(out).toContain('Bitmovin Support');
     expect(out).toContain('Please check the logs.');
   });
+
+  it('hides attachment URLs by default and reveals them with --show-secrets', async () => {
+    // The API documents these as downloadable by anyone holding the link, so they
+    // are masked like any other secret — a CI log or terminal recording would
+    // otherwise hand out the customer's attachment with no credential needed.
+    const detail = {
+      ...ticket,
+      comments: [
+        {
+          id: 1,
+          body: 'logs attached',
+          author: {name: 'Jane Customer'},
+          attachments: [{id: 7, fileName: 'crash.log', url: 'https://files.example.com/crash.log?token=SECRET'}],
+        },
+      ],
+    };
+
+    apiRequest.mockResolvedValue(detail);
+    let cap = capture();
+    const {default: Cmd} = await import('../../src/commands/support/tickets/get.js');
+    await Cmd.run(['123456']);
+    cap.restore();
+    expect(cap.output()).toContain('crash.log');
+    expect(cap.output()).not.toContain('token=SECRET');
+
+    apiRequest.mockResolvedValue(detail);
+    cap = capture();
+    await Cmd.run(['123456', '--show-secrets']);
+    cap.restore();
+    expect(cap.output()).toContain('token=SECRET');
+  });
+
+  it('strips control characters from ticket text before printing it', async () => {
+    apiRequest.mockResolvedValue({
+      ...ticket,
+      subject: 'Encoding\u001B[2K fails',
+      comments: [{id: 1, body: 'before\u001B[1Aafter', author: {name: 'Jane\u0000 Customer'}}],
+    });
+    const cap = capture();
+    const {default: Cmd} = await import('../../src/commands/support/tickets/get.js');
+    await Cmd.run(['123456']);
+    cap.restore();
+
+    expect(cap.output()).not.toContain('\u001B[2K');
+    expect(cap.output()).not.toContain('\u001B[1A');
+    expect(cap.output()).toContain('Jane Customer');
+  });
 });
 
 describe('support tickets create', () => {
@@ -175,8 +258,11 @@ describe('support tickets create', () => {
     await Cmd.run(['--category', 'other', '--body', 'It broke.']);
     cap.restore();
 
-    expect(cap.output()).toContain('REAL support ticket');
-    expect(cap.output()).toContain('"body": "It broke."');
+    // The preview is a warning, so it goes to stderr; stdout stays reserved for
+    // command output (and stays valid JSON in --json mode).
+    expect(cap.errOutput()).toContain('REAL support ticket');
+    expect(cap.errOutput()).toContain('It broke.');
+    expect(cap.output()).not.toContain('REAL support ticket');
     expect(cap.output()).toContain('Aborted. No ticket was created.');
     expect(apiRequest).not.toHaveBeenCalled();
   });
@@ -271,7 +357,7 @@ describe('support tickets comment', () => {
     await Cmd.run(['123456', '--body', 'hello']);
     cap.restore();
 
-    expect(cap.output()).toContain('PUBLIC comment');
+    expect(cap.errOutput()).toContain('PUBLIC comment');
     expect(cap.output()).toContain('Aborted. No comment was posted.');
     expect(apiRequest).toHaveBeenCalledTimes(1);
   });

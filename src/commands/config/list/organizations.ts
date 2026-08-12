@@ -17,8 +17,9 @@ export default class ConfigListOrganizations extends BaseCommand {
   ];
 
   async run(): Promise<void> {
+    const {flags} = await this.parse(ConfigListOrganizations);
     const config = loadConfig();
-    const orgs = await listOrganizations(await this.getApi());
+    const orgs = await listOrganizations(await this.getApi(), flags['api-key'] as string | undefined);
     // Sub-orgs come from the parentId of the flat listing — see
     // lib/organizations.ts for why the sub-organizations endpoint is avoided.
     const allOrgs = toOrganizationRows(orgs, config.tenantOrgId).map((row) => ({

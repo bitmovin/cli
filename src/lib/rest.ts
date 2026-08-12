@@ -11,6 +11,9 @@ import {getAuthHeaders} from './client.js';
  */
 const API_BASE_URL = 'https://api.bitmovin.com/v1';
 
+/** Bounded so a hung API surfaces an error instead of an indefinitely silent CLI. */
+const REQUEST_TIMEOUT_MS = 30_000;
+
 /** Header the API uses to scope a request to a (sub-)organization. */
 export const TENANT_ORG_HEADER = 'X-Tenant-Org-Id';
 
@@ -89,6 +92,11 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const response = await fetch(url.toString(), {
     method: options.method ?? 'GET',
     headers,
+    // `X-Api-Key` is a custom header, so undici does NOT strip it across origins
+    // the way it strips `Authorization`. Refuse redirects rather than forward the
+    // credential to wherever a redirect points.
+    redirect: 'error',
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     ...(options.body !== undefined && {body: JSON.stringify(options.body)}),
   });
 
@@ -112,7 +120,30 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     });
   }
 
-  return (envelope?.data?.result ?? {}) as T;
+  // A 2xx whose body is not a Bitmovin envelope is NOT a success. Without this,
+  // an intercepting gateway answering a create POST with an HTML maintenance page
+  // would return `{}` and the CLI would report a ticket that was never filed.
+  if (!envelope || envelope.data === undefined) {
+    throw new BitmovinRestError({
+      message: `The API returned HTTP ${response.status} with an unexpected body.`,
+      httpStatusCode: response.status,
+      developerMessage: truncate(text) ?? 'The response body was empty.',
+      tenantOrgId: options.tenantOrgId,
+    });
+  }
+
+  if (envelope.status && envelope.status !== 'SUCCESS') {
+    throw new BitmovinRestError({
+      message: envelope.data.message ?? `The API reported status "${envelope.status}".`,
+      httpStatusCode: response.status,
+      errorCode: envelope.data.code,
+      developerMessage: envelope.data.developerMessage,
+      requestId: envelope.requestId,
+      tenantOrgId: options.tenantOrgId,
+    });
+  }
+
+  return (envelope.data.result ?? {}) as T;
 }
 
 function truncate(text: string): string | undefined {

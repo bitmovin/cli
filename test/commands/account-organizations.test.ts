@@ -13,17 +13,30 @@ const organizations = [
 ];
 
 const subOrganizationsList = vi.fn();
+const sdkOrganizationsList = vi.fn(async () => ({items: organizations}));
 
 vi.mock('../../src/lib/client.js', () => ({
   getClient: async () => ({
     account: {
       organizations: {
-        list: async () => ({items: organizations}),
+        list: sdkOrganizationsList,
         subOrganizations: {list: subOrganizationsList},
       },
     },
   }),
 }));
+
+// Organizations are paged through the REST helper, not the SDK: the SDK's
+// `organizations.list()` takes no arguments and so silently returns only the first
+// page. Pages are served from `organizations` above so the paging loop is exercised.
+const apiRequest = vi.fn(async (path: string, options?: {query?: {limit?: number; offset?: number}}) => {
+  if (path !== '/account/organizations') throw new Error(`unexpected path ${path}`);
+  const offset = options?.query?.offset ?? 0;
+  const limit = options?.query?.limit ?? 100;
+  return {items: organizations.slice(offset, offset + limit), totalCount: organizations.length};
+});
+
+vi.mock('../../src/lib/rest.js', () => ({apiRequest: (...args: unknown[]) => apiRequest(...(args as [string])), TENANT_ORG_HEADER: 'X-Tenant-Org-Id'}));
 
 function captureStdout(): {output: () => string; restore: () => void} {
   let captured = '';
@@ -54,6 +67,46 @@ describe('account organizations list', () => {
     cap.restore();
 
     expect(subOrganizationsList).not.toHaveBeenCalled();
+  });
+
+  it('pages the organizations endpoint instead of the unpaged SDK call', async () => {
+    // The SDK's organizations.list() accepts no query parameters, so using it would
+    // silently cap the listing at the API's default page — sub-orgs whose parent
+    // landed on a later page would then be rendered as roots.
+    apiRequest.mockClear();
+    sdkOrganizationsList.mockClear();
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/account/organizations/list.js');
+    await Cmd.run(['--json']);
+    cap.restore();
+
+    expect(sdkOrganizationsList).not.toHaveBeenCalled();
+    expect(apiRequest).toHaveBeenCalledWith('/account/organizations', expect.objectContaining({query: {limit: 100, offset: 0}}));
+  });
+
+  it('keeps requesting pages until every organization is collected', async () => {
+    // Drives the paging loop directly with a page size of 2, so the three orgs span
+    // two pages: a parent on page 1 with a sub-org on page 2 must still nest.
+    const {listOrganizations, toOrganizationRows} = await import('../../src/lib/organizations.js');
+    apiRequest.mockClear();
+
+    const orgs = await listOrganizations({} as never, undefined, 2);
+
+    expect(apiRequest).toHaveBeenCalledTimes(2);
+    expect(apiRequest).toHaveBeenNthCalledWith(1, '/account/organizations', expect.objectContaining({query: {limit: 2, offset: 0}}));
+    expect(apiRequest).toHaveBeenNthCalledWith(2, '/account/organizations', expect.objectContaining({query: {limit: 2, offset: 2}}));
+    expect(toOrganizationRows(orgs).map((row) => row.id)).toEqual(['root-1', 'sub-1', 'sub-2']);
+  });
+
+  it('refuses to return a truncated organization list', async () => {
+    // A short page while totalCount says there is more means the server capped the
+    // page size; offsets are page-aligned so we cannot resume mid-page. Returning
+    // the partial list would render sub-orgs as roots.
+    const {listOrganizations} = await import('../../src/lib/organizations.js');
+    apiRequest.mockClear();
+    apiRequest.mockImplementationOnce(async () => ({items: organizations.slice(0, 1), totalCount: 9}));
+
+    await expect(listOrganizations({} as never, undefined, 2)).rejects.toThrow(/only 1 of 9 organizations/);
   });
 
   it('filters to the sub-organizations of a parent', async () => {

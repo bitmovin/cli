@@ -4,7 +4,16 @@ import chalk from 'chalk';
 import {BaseCommand} from '../../../lib/base-command.js';
 import {canPrompt, confirmAction} from '../../../lib/confirm.js';
 import {organizationFlag, resolveTenantOrgId} from '../../../lib/organizations.js';
-import {addComment, getTicket, toHtmlBody, validateCommentBody} from '../../../lib/support-tickets.js';
+import {
+  type SupportTicketComment,
+  abbreviate,
+  addComment,
+  getTicket,
+  latestComment,
+  sanitizeForTerminal,
+  toHtmlBody,
+  validateCommentBody,
+} from '../../../lib/support-tickets.js';
 
 export default class SupportTicketsComment extends BaseCommand {
   static override description =
@@ -45,10 +54,16 @@ export default class SupportTicketsComment extends BaseCommand {
     const problem = validateCommentBody(htmlBody);
     if (problem) this.error(problem, {exit: 2});
 
-    // The API requires updatedStamp (the ticket's last known modifiedAt) for
+    // The API requires updatedStamp (the ticket state the author wrote against) for
     // collision protection; without it, it answers with a misleading
-    // "1004 … Check your JSON syntax". Read it straight from the ticket so the
-    // caller never has to supply it.
+    // "1004 … Check your JSON syntax". Read it from the ticket so the caller never
+    // has to supply it.
+    //
+    // The stamp is deliberately taken from THIS read, before the confirmation, and
+    // the newest comment is shown in the preview below. That way the stamp
+    // corresponds to the state the user actually saw: if support replies while the
+    // user is deciding, the API rejects the post with a 409 instead of silently
+    // accepting a reply written against stale information.
     const ticket = await getTicket(args.id, context);
     if (!ticket.modifiedAt) {
       this.error(
@@ -59,9 +74,7 @@ export default class SupportTicketsComment extends BaseCommand {
     }
 
     const jsonMode = await this.isJsonMode();
-    if (!jsonMode) {
-      process.stdout.write(this.renderPreview(args.id, ticket.subject, ticket.status, htmlBody));
-    }
+    process.stderr.write(this.renderPreview(args.id, ticket.subject, ticket.status, htmlBody, latestComment(ticket)));
 
     if (!flags.yes) {
       if (jsonMode || !canPrompt()) {
@@ -99,16 +112,35 @@ export default class SupportTicketsComment extends BaseCommand {
     }
   }
 
-  private renderPreview(caseId: string, subject?: string, status?: string, htmlBody?: string): string {
-    return [
+  private renderPreview(
+    caseId: string,
+    subject?: string,
+    status?: string,
+    htmlBody?: string,
+    newest?: SupportTicketComment,
+  ): string {
+    const lines = [
       '',
       chalk.yellow.bold('This posts a PUBLIC comment on a real support ticket.'),
       chalk.yellow('Bitmovin support sees it immediately and it cannot be withdrawn via the API.'),
       '',
       chalk.bold('Ticket:  ') + `${caseId}${subject ? ` — ${subject}` : ''}${status ? chalk.dim(` [${status}]`) : ''}`,
-      chalk.bold('Comment:'),
-      htmlBody ?? '',
-      '',
-    ].join('\n');
+    ];
+
+    // Shown so the user is replying to the state the collision stamp was taken
+    // from, rather than to whatever they last read in a browser.
+    if (newest) {
+      lines.push(
+        chalk.bold('Latest comment: ') +
+          chalk.dim(
+            `${sanitizeForTerminal(newest.author?.name ?? 'unknown')}${newest.author?.agent ? ' (Bitmovin)' : ''}` +
+            ` — ${newest.createdAt ?? 'unknown time'}`,
+          ),
+        abbreviate(sanitizeForTerminal(newest.body ?? ''), 300, 0),
+      );
+    }
+
+    lines.push(chalk.bold('Your comment:'), abbreviate(htmlBody ?? ''), '');
+    return lines.join('\n');
   }
 }

@@ -25,6 +25,45 @@ export const TICKET_SORT_FIELDS = ['createdAt', 'modifiedAt'] as const;
 export const MAX_LIMIT = 100;
 export const MAX_SEARCH_TEXT_LENGTH = 100;
 export const MAX_COMMENT_LENGTH = 65_536;
+/**
+ * The API's ticket `body` is only checked for non-emptiness, so this bound is the
+ * CLI's own: the body goes into a ticket that cannot be withdrawn via the API, and
+ * an unbounded `--body-file` would push the confirmation warning off screen.
+ * Matches the comment limit for consistency.
+ */
+export const MAX_BODY_LENGTH = 65_536;
+
+/** Head-and-tail view of a long value, so a preview stays readable and honest about size. */
+export function abbreviate(text: string, headChars = 600, tailChars = 200): string {
+  if (text.length <= headChars + tailChars) return text;
+  const omitted = text.length - headChars - tailChars;
+  return `${text.slice(0, headChars)}\n… [${omitted} characters omitted] …\n${text.slice(-tailChars)}`;
+}
+
+/**
+ * Strips control and escape sequences before printing ticket text.
+ *
+ * Ticket subjects and comment bodies are attacker-influenceable — anyone who can
+ * land a public comment (the requester, a CC'd party) controls them. The API
+ * sanitizes HTML but not C0/ANSI, so raw output would let a comment rewrite the
+ * rendered conversation, including forging the "(Bitmovin)" agent attribution a
+ * reader relies on.
+ */
+export function sanitizeForTerminal(text: string): string {
+  // C0 controls except tab/newline/carriage-return, plus DEL and the C1 range
+  // (which is where ANSI/OSC escape sequences live).
+  /* eslint-disable-next-line no-control-regex -- stripping control characters is the point */
+  return text.replaceAll(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+}
+
+/** Newest comment on a ticket, by createdAt, for the comment preview. */
+export function latestComment(ticket: SupportTicketDetail): SupportTicketComment | undefined {
+  const comments = ticket.comments ?? [];
+  if (comments.length === 0) return undefined;
+  return comments.reduce((newest, candidate) =>
+    (candidate.createdAt ?? '') > (newest.createdAt ?? '') ? candidate : newest,
+  );
+}
 
 /** CLI-friendly flag values mapped to the API's Zendesk field values. */
 export const REQUEST_TYPES: Record<string, string> = {
@@ -159,10 +198,13 @@ export function validatePagination(limit: number, offset: number): string | unde
   }
 
   if (offset % limit !== 0) {
-    const nearest = Math.round(offset / limit) * limit;
+    // Floor, not round: the page that actually contains item `offset + 1` starts
+    // at the multiple below it. Rounding up would suggest a page that skips
+    // results — the very thing this check exists to prevent.
+    const pageStart = Math.floor(offset / limit) * limit;
     return (
       `--offset must be 0 or a multiple of --limit (${limit}); got ${offset}. ` +
-      `The API silently returns an earlier page otherwise. Try --offset ${nearest}.`
+      `The API silently returns an earlier page otherwise. Try --offset ${pageStart}.`
     );
   }
 
@@ -197,6 +239,22 @@ export function validateEnumFilter(flagName: string, value: string, allowed: rea
   }
 
   return undefined;
+}
+
+/**
+ * Normalizes a comma-separated filter to what the API can parse.
+ *
+ * Validation above trims each part, but the API splits on `,` and uppercases
+ * *without* trimming — so `--status "open, pending"` would pass validation here and
+ * still come back as HTTP 400, exactly the round trip the local check exists to
+ * avoid. Send what we validated.
+ */
+export function normalizeEnumFilter(value: string): string {
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(',');
 }
 
 export function validateSort(sort: string): string | undefined {
@@ -280,8 +338,14 @@ export function buildCreateTicketPayload(flags: CreateTicketFlags, tenantOrgId?:
 }
 
 /**
- * Category-gated fields — the API only accepts these in combination with a
- * matching category, and rejecting locally beats a confirmed-then-failed create.
+ * Category-gated fields.
+ *
+ * The API does NOT reject these when the category does not match — it maps them
+ * only inside the branch for their category and otherwise drops them silently, so
+ * the create succeeds while the data disappears. That is why the check lives here:
+ * without it, `--category player --allow-file-access` would leave the user
+ * believing they granted support access to their files while support sees no such
+ * field. Do not relax this expecting a loud API error.
  */
 export function validateCreateTicketPayload(payload: Record<string, unknown>): string | undefined {
   const category = String(payload.category ?? '').toLowerCase();
@@ -292,6 +356,10 @@ export function validateCreateTicketPayload(payload: Record<string, unknown>): s
 
   if (payload.encodingId !== undefined && category !== 'encoding') {
     return `--encoding-id requires --category encoding (got '${category}').`;
+  }
+
+  if (payload.allowFileAccess !== undefined && category !== 'encoding') {
+    return `--allow-file-access requires --category encoding (got '${category}').`;
   }
 
   for (const field of ['license', 'pageUrl'] as const) {

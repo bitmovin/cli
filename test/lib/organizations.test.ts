@@ -61,4 +61,12 @@ describe('resolveTenantOrgId', () => {
   it('falls back to the configured organization', () => {
     expect(resolveTenantOrgId()).toBe('config-org');
   });
+
+  it('rejects a blank flag value instead of silently widening the scope', () => {
+    // `--organization "$SUB_ORG"` with SUB_ORG unset would otherwise drop the
+    // X-Tenant-Org-Id header while still sending organizationId: "", which the API
+    // treats as absent — filing the ticket against the credential's own org.
+    expect(() => resolveTenantOrgId('')).toThrow(/empty value/i);
+    expect(() => resolveTenantOrgId('   ')).toThrow(/empty value/i);
+  });
 });

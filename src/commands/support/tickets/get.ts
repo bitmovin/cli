@@ -1,8 +1,8 @@
-import {Args} from '@oclif/core';
+import {Args, Flags} from '@oclif/core';
 import chalk from 'chalk';
 import {BaseCommand} from '../../../lib/base-command.js';
 import {organizationFlag, resolveTenantOrgId} from '../../../lib/organizations.js';
-import {getTicket, type SupportTicketComment} from '../../../lib/support-tickets.js';
+import {getTicket, sanitizeForTerminal, type SupportTicketComment} from '../../../lib/support-tickets.js';
 
 export default class SupportTicketsGet extends BaseCommand {
   static override description = 'Show a support ticket including its public comment conversation';
@@ -14,6 +14,10 @@ export default class SupportTicketsGet extends BaseCommand {
   static override flags = {
     ...BaseCommand.baseFlags,
     organization: organizationFlag,
+    'show-secrets': Flags.boolean({
+      description: 'Show attachment download URLs, which grant access to the file to anyone holding the link',
+      default: false,
+    }),
   };
 
   static override examples = [
@@ -36,7 +40,7 @@ export default class SupportTicketsGet extends BaseCommand {
 
     await this.outputData({
       caseId: detail.caseId,
-      subject: detail.subject,
+      subject: sanitizeForTerminal(detail.subject ?? ''),
       status: detail.status,
       category: detail.category,
       priority: detail.priority,
@@ -49,19 +53,26 @@ export default class SupportTicketsGet extends BaseCommand {
     });
 
     for (const comment of detail.comments ?? []) {
-      process.stdout.write('\n' + renderComment(comment) + '\n');
+      process.stdout.write('\n' + renderComment(comment, Boolean(flags['show-secrets'])) + '\n');
     }
   }
 }
 
-function renderComment(comment: SupportTicketComment): string {
-  const author = comment.author?.name ?? 'unknown';
+function renderComment(comment: SupportTicketComment, showSecrets: boolean): string {
+  // Author and body are sanitized: anyone who can land a public comment controls
+  // this text, and raw escape sequences could otherwise forge the "(Bitmovin)"
+  // attribution below or rewrite the rendered conversation.
+  const author = sanitizeForTerminal(comment.author?.name ?? 'unknown');
   const role = comment.author?.agent ? ' (Bitmovin)' : '';
   const header = chalk.bold(`${author}${role}`) + chalk.dim(comment.createdAt ? ` — ${comment.createdAt}` : '');
-  const lines = [header, comment.body ?? ''];
+  const lines = [header, sanitizeForTerminal(comment.body ?? '')];
 
   for (const attachment of comment.attachments ?? []) {
-    lines.push(chalk.dim(`  attachment: ${attachment.fileName ?? attachment.id} ${attachment.url ?? ''}`.trimEnd()));
+    // The attachment URL is a capability: the API documents it as downloadable by
+    // anyone holding the link, so it is masked like any other secret unless asked
+    // for, matching `account info`.
+    const location = showSecrets ? (attachment.url ?? '') : chalk.dim('[url hidden — pass --show-secrets]');
+    lines.push(chalk.dim(`  attachment: ${attachment.fileName ?? attachment.id} `) + location);
   }
 
   return lines.join('\n');

@@ -8,6 +8,8 @@ import {
   TICKET_SORT_FIELDS,
   TICKET_STATUSES,
   listTickets,
+  normalizeEnumFilter,
+  sanitizeForTerminal,
   validateEnumFilter,
   validatePagination,
   validateSearchText,
@@ -54,25 +56,40 @@ export default class SupportTicketsList extends BaseCommand {
 
     if (problem) this.error(problem, {exit: 2});
 
+    const filtered = [flags.status, flags.category, flags.priority, flags.severity, flags.search].some(
+      (value) => value !== undefined,
+    );
+
     const page = await listTickets(
       {
         limit: flags.limit,
         offset: flags.offset,
-        status: flags.status,
-        category: flags.category,
-        priority: flags.priority,
-        severity: flags.severity,
+        status: flags.status === undefined ? undefined : normalizeEnumFilter(flags.status),
+        category: flags.category === undefined ? undefined : normalizeEnumFilter(flags.category),
+        priority: flags.priority === undefined ? undefined : normalizeEnumFilter(flags.priority),
+        severity: flags.severity === undefined ? undefined : normalizeEnumFilter(flags.severity),
         searchText: flags.search,
         sort: flags.sort,
       },
       {tenantOrgId: resolveTenantOrgId(flags.organization), apiKey: flags['api-key'] as string | undefined},
     );
 
-    const items = page.items ?? [];
+    // Subjects are attacker-influenceable (anyone who can open a ticket picks one),
+    // so control characters are stripped before they reach the terminal.
+    const items = (page.items ?? []).map((item) => ({...item, subject: sanitizeForTerminal(item.subject ?? '')}));
     await this.outputList(items, COLUMNS);
 
-    if (!flags.quiet && items.length > 0 && page.totalCount !== undefined) {
-      this.log(`Showing ${flags.offset + 1}-${flags.offset + items.length} of ${page.totalCount}.`);
+    if (!flags.quiet && items.length > 0) {
+      // With no --sort and no filter the API pulls tickets awaiting a customer
+      // reply to the front, and in that mode its totalCount counts only those —
+      // so reporting it as the grand total would understate an org's tickets.
+      const totalIsExact = flags.sort !== undefined || filtered;
+      const range = `Showing ${flags.offset + 1}-${flags.offset + items.length}`;
+      this.log(
+        totalIsExact && page.totalCount !== undefined
+          ? `${range} of ${page.totalCount}.`
+          : `${range}. Tickets awaiting your reply are listed first; pass --sort createdAt:DESC for a strict order and an exact total.`,
+      );
     }
   }
 }

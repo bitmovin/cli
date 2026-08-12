@@ -190,10 +190,14 @@ bitmovin account organizations list --parent <org-id>  # Only that parent's sub-
 bitmovin account organizations list --json --jq '.[] | select(.parentId != null) | .id'
 ```
 
-The hierarchy is derived from the `parentId` of the flat organization listing.
-The API's per-organization `sub-organizations` endpoint is deliberately not used:
-it answers `1001 An organization with the given id does not exist` for
-organization ids that the listing plainly returns.
+`--type` and `--parent` cannot be combined, and `--parent` requires an organization
+your credentials can see — an unknown id exits with an error rather than an empty
+list.
+
+The hierarchy is derived from the `parentId` of the flat organization listing, which
+the CLI pages through in full. The API's per-organization `sub-organizations`
+endpoint is deliberately not used: it answers `1001 An organization with the given
+id does not exist` for organization ids that the listing plainly returns.
 
 ## Support
 
@@ -217,34 +221,63 @@ bitmovin support tickets comment <case-id> --body "Still reproducible on 8.150.0
 ```
 
 **Creating a ticket and commenting are irreversible.** Both commands print the
-exact payload, warn that Bitmovin support engineers will see it and that it
-cannot be withdrawn via the API, and then ask for an explicit confirmation.
-`--yes` (alias `--confirm`) skips the prompt and is **required** for
-non-interactive use — without a TTY, or in `--json` mode, the commands refuse to
-send anything instead of silently filing a ticket.
+exact payload **to stderr** — always, including under `--json`, so a scripted run
+still records what was filed and against which organization — warn that Bitmovin
+support engineers will see it and that it cannot be withdrawn via the API, and then
+ask for an explicit confirmation. `--yes` (alias `--confirm`) skips the prompt and
+is **required** for non-interactive use — without a TTY, or in `--json` mode, the
+commands refuse to send anything instead of silently filing a ticket.
+
+The ticket is filed as **the user behind your credentials**, not as the
+organization: the API resolves the requester from the authenticated user and that
+person's name and email appear on the ticket. A credential that carries no user
+identity (some machine keys) is rejected by the API with `400`.
+
+A long `--body-file` is previewed head-and-tail with its character count rather
+than in full, so the warning above stays on screen; the body is capped at 65,536
+characters.
 
 | Flag | Applies to | Description |
 |------|-----------|-------------|
-| `--organization <org-id>` (alias `--tenant-org`) | all | Organization to act on, sent as `X-Tenant-Org-Id`. Defaults to `bitmovin config set organization`. For `create`, the body's `organizationId` is always set to the same value — the API rejects a mismatch. |
+| `--organization <org-id>` (alias `--tenant-org`) | all | Organization to act on, sent as `X-Tenant-Org-Id`. Defaults to `bitmovin config set organization`; omit both to use the organization of your credentials. For `create`, the body's `organizationId` is set to the same value whenever an organization is resolved — the API rejects a mismatch. An **empty** value (`--organization ""`, e.g. an unset shell variable) is rejected rather than quietly falling back. |
 | `--body <text>` / `--body-file <path>` | `create`, `comment` | Ticket / comment text, inline or from a file. |
 | `--html` | `comment` | Send the comment as HTML. By default plain text is escaped and its line breaks are preserved. |
 | `--yes` / `-y` | `create`, `comment` | Confirm non-interactively. |
-| `--limit` / `--offset` | `list` | Page size (1–100) and offset. The offset must be `0` or a multiple of `--limit`; other values make the API silently return an earlier page, so the CLI rejects them. |
+| `--limit` / `--offset` | `list` | Page size (1–100, default 25) and offset (default 0). The offset must be `0` or a multiple of `--limit`; other values make the API silently return an earlier page, so the CLI rejects them. |
+| `--show-secrets` | `get` | Print attachment download URLs. They are hidden by default: the URL alone grants access to the file to anyone holding the link. |
 | `--status`, `--category`, `--priority`, `--severity` | `list` | Comma-separated filters. Status: `new, open, pending, hold, solved, closed, deleted`. Category: `encoding, player, analytics, other`. Priority: `blocker, high, medium, low`. Severity: `high, medium, low, minor`. |
 | `--search <text>` | `list` | Full-text search, max 100 characters, letters/digits/spaces only (the API rejects punctuation). |
 | `--sort <expr>` | `list` | `createdAt` or `modifiedAt`, optionally `:ASC` / `:DESC`. |
 
 `create` requires `--category` (`encoding`, `player`, `analytics`, `other`) and a
-body. Some fields are category-gated: `--encoding-id` requires
-`--category encoding`, while `--license` and `--page-url` require
-`--category player` or `--category analytics`. Run
+body. Some fields are category-gated: `--encoding-id` and `--allow-file-access`
+require `--category encoding`, while `--license` and `--page-url` require
+`--category player` or `--category analytics`. The CLI rejects a mismatch, because
+the API does **not** — it accepts the request and silently drops the field, so a
+ticket would look filed while the data never arrived. Run
 `bitmovin support tickets create --help` for the full field list
 (`--platform`, `--sdk-version`, `--os-details`, `--device-details`,
 `--request-type`, `--reproducible-reliably`, …).
 
+Some ticket fields the API accepts have no CLI flag: `collaborators`,
+`businessImpact`, `streamId`, `analyticsUserSessionUrl`,
+`analyticsCollectorVersion`, `playerConfig`, `playerSourceConfig` and
+`playerWorkingVersion`. Use the dashboard when a ticket needs those — support
+engineers routinely ask for the player config and version.
+
 `comment` posts a **public** reply. It first reads the ticket to obtain its
 `modifiedAt` and sends it as the required `updatedStamp`, which is how the API
-detects a concurrent update — so you never have to pass a timestamp yourself.
+detects a concurrent update — so you never have to pass a timestamp yourself. The
+ticket's newest comment is shown in the confirmation, so you are replying to the
+state the stamp was taken from: if support replies while you are deciding, the API
+rejects the post rather than accepting a reply written against stale information.
+
+`list` ordering: with no `--sort` and no filter, the API lists tickets awaiting your
+reply first, then newest first — and in that mode its total counts only those, so
+the CLI reports the range without a total. Pass `--sort createdAt:DESC` (or any
+filter) for a strict ordering and an exact total. `--json` emits just the ticket
+array; page by requesting successive offsets until a page returns fewer items than
+`--limit`.
 
 If a sub-organization is not granted to your credentials, the API answers
 `1003 Access denied`; the CLI reports which organization was targeted and points

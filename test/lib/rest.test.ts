@@ -73,4 +73,40 @@ describe('apiRequest', () => {
     expect(error.message).toContain('HTTP 502');
     expect(error.developerMessage).toBe('gateway exploded');
   });
+
+  it('rejects a 2xx whose body is not a Bitmovin envelope', async () => {
+    // Otherwise an intercepting gateway answering a create POST with an HTML
+    // maintenance page would be reported as a successfully filed ticket.
+    mockFetch(200, '<html><body>Under maintenance</body></html>');
+
+    const error = await apiRequest('/support/tickets', {method: 'POST', body: {body: 'x'}}).catch((err) => err);
+    expect(error).toBeInstanceOf(BitmovinRestError);
+    expect(error.message).toMatch(/unexpected body/i);
+  });
+
+  it('rejects an empty 2xx body', async () => {
+    mockFetch(200, '');
+
+    await expect(apiRequest('/support/tickets')).rejects.toThrow(/unexpected body/i);
+  });
+
+  it('rejects a 2xx envelope whose status is not SUCCESS', async () => {
+    mockFetch(200, {requestId: 'req-9', status: 'ERROR', data: {code: 1004, message: 'Bad request'}});
+
+    const error = await apiRequest('/support/tickets').catch((err) => err);
+    expect(error).toBeInstanceOf(BitmovinRestError);
+    expect(error.message).toBe('Bad request');
+    expect(error.errorCode).toBe(1004);
+  });
+
+  it('refuses redirects and bounds the request', async () => {
+    // X-Api-Key is a custom header, so undici does not strip it across origins the
+    // way it strips Authorization — a followed redirect would leak the credential.
+    const fetchMock = mockFetch(200, {status: 'SUCCESS', data: {result: {}}});
+    await apiRequest('/support/tickets');
+
+    const init = fetchMock.mock.calls[0][1] as {redirect?: string; signal?: AbortSignal};
+    expect(init.redirect).toBe('error');
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
 });

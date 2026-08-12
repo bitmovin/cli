@@ -137,3 +137,60 @@ describe('validateCommentBody', () => {
     expect(validateCommentBody('ok')).toBeUndefined();
   });
 });
+
+describe('validatePagination offset guidance', () => {
+  it('rejects an offset below the limit — the case the server floors back to page 1', async () => {
+    const {validatePagination} = await import('../../src/lib/support-tickets.js');
+    expect(validatePagination(25, 10)).toContain('multiple of --limit');
+  });
+
+  it('suggests the page containing the requested item, never a later one', async () => {
+    const {validatePagination} = await import('../../src/lib/support-tickets.js');
+    // Item 41 lives on the page starting at offset 25; suggesting 50 would skip 26-50.
+    expect(validatePagination(25, 40)).toContain('--offset 25');
+    expect(validatePagination(25, 10)).toContain('--offset 0');
+  });
+});
+
+describe('normalizeEnumFilter', () => {
+  it('strips the spaces the API does not tolerate', async () => {
+    const {normalizeEnumFilter} = await import('../../src/lib/support-tickets.js');
+    // The API splits on ',' and uppercases without trimming, so ' pending' is invalid
+    // there even though validation accepts it here.
+    expect(normalizeEnumFilter('open, pending')).toBe('open,pending');
+    expect(normalizeEnumFilter(' solved ')).toBe('solved');
+  });
+});
+
+describe('category gating for --allow-file-access', () => {
+  it('rejects it outside --category encoding, because the API silently drops it', async () => {
+    const {validateCreateTicketPayload} = await import('../../src/lib/support-tickets.js');
+    expect(validateCreateTicketPayload({body: 'x', category: 'player', allowFileAccess: true})).toContain(
+      '--allow-file-access requires',
+    );
+    expect(validateCreateTicketPayload({body: 'x', category: 'encoding', allowFileAccess: true})).toBeUndefined();
+  });
+});
+
+describe('sanitizeForTerminal', () => {
+  it('strips escape sequences that could forge the agent attribution', async () => {
+    const {sanitizeForTerminal} = await import('../../src/lib/support-tickets.js');
+    // ESC [ 2 K clears the line, letting a comment overwrite the header above it
+    // and impersonate a Bitmovin agent reply.
+    expect(sanitizeForTerminal('safe\u001B[2Kforged (Bitmovin)')).toBe('safe[2Kforged (Bitmovin)');
+    expect(sanitizeForTerminal('a\u0000b\u007Fc')).toBe('abc');
+  });
+
+  it('keeps tabs and newlines so real comment text survives', async () => {
+    const {sanitizeForTerminal} = await import('../../src/lib/support-tickets.js');
+    expect(sanitizeForTerminal('line1\nline2\tend')).toBe('line1\nline2\tend');
+  });
+});
+
+describe('abbreviate', () => {
+  it('reports how much it omitted rather than silently truncating', async () => {
+    const {abbreviate} = await import('../../src/lib/support-tickets.js');
+    expect(abbreviate('x'.repeat(50), 10, 5)).toContain('35 characters omitted');
+    expect(abbreviate('short', 10, 5)).toBe('short');
+  });
+});

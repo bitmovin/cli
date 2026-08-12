@@ -10,7 +10,9 @@ import {
   REQUEST_TYPES,
   TICKET_CATEGORIES,
   TICKET_PRIORITIES,
+  MAX_BODY_LENGTH,
   TICKET_SEVERITIES,
+  abbreviate,
   buildCreateTicketPayload,
   createTicket,
   validateCreateTicketPayload,
@@ -74,10 +76,12 @@ export default class SupportTicketsCreate extends BaseCommand {
     const problem = validateCreateTicketPayload(payload);
     if (problem) this.error(problem, {exit: 2});
 
+    // Always previewed, and always to stderr: it is a warning, not command output.
+    // Writing it in JSON mode too means a scripted `--json --yes` create still
+    // leaves a record of what was filed and against which organization, without
+    // polluting the JSON on stdout.
     const jsonMode = await this.isJsonMode();
-    if (!jsonMode) {
-      process.stdout.write(this.renderPreview(payload, tenantOrgId));
-    }
+    process.stderr.write(this.renderPreview(payload, tenantOrgId, jsonMode));
 
     if (!flags.yes) {
       if (jsonMode || !canPrompt()) {
@@ -108,24 +112,45 @@ export default class SupportTicketsCreate extends BaseCommand {
       this.error('A ticket body is required. Pass --body "<text>" or --body-file <path>.', {exit: 2});
     }
 
+    let contents: string;
     try {
-      return readFileSync(bodyFile, 'utf-8');
+      contents = readFileSync(bodyFile, 'utf-8');
     } catch (err) {
       this.error(`Could not read --body-file ${bodyFile}: ${err instanceof Error ? err.message : String(err)}`, {exit: 2});
     }
+
+    // Bounded because the whole file is transmitted into a ticket that cannot be
+    // withdrawn via the API, and because an enormous body scrolls the warning
+    // above off screen — degrading the confirmation exactly when it matters most.
+    if (contents.length > MAX_BODY_LENGTH) {
+      this.error(
+        `--body-file ${bodyFile} is ${contents.length} characters; the maximum is ${MAX_BODY_LENGTH}.\n` +
+        '  Attach large files to the ticket in the dashboard instead of inlining them.',
+        {exit: 2},
+      );
+    }
+
+    return contents;
   }
 
-  private renderPreview(payload: Record<string, unknown>, tenantOrgId?: string): string {
+  private renderPreview(payload: Record<string, unknown>, tenantOrgId?: string, jsonMode = false): string {
+    // The body is shown head-and-tail so the warning and the organization stay on
+    // screen for a long --body-file, while still showing what is actually sent.
+    const {body, ...rest} = payload as {body?: string} & Record<string, unknown>;
+    const shown = JSON.stringify(rest, null, 2);
     const lines = [
       '',
       chalk.yellow.bold('This files a REAL support ticket with Bitmovin support.'),
       chalk.yellow('Support engineers will see it, and it cannot be withdrawn via the API.'),
       '',
       chalk.bold('Organization: ') + (tenantOrgId ?? chalk.dim('(the organization of your credentials)')),
-      chalk.bold('Payload:'),
-      JSON.stringify(payload, null, 2),
+      chalk.bold('Fields:'),
+      shown,
+      chalk.bold(`Body (${body?.length ?? 0} characters):`),
+      abbreviate(body ?? ''),
       '',
     ];
+    if (jsonMode) lines.push(chalk.dim('(payload echoed to stderr; ticket result follows on stdout)'), '');
     return lines.join('\n');
   }
 }
