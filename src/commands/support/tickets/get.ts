@@ -43,8 +43,8 @@ export default class SupportTicketsGet extends BaseCommand {
       severity: detail.severity,
       createdAt: detail.createdAt,
       modifiedAt: detail.modifiedAt,
-      requester: detail.requester?.name,
-      organization: detail.organization?.name ?? detail.organization?.id,
+      requester: sanitizeForTerminal(detail.requester?.name ?? ''),
+      organization: sanitizeForTerminal(detail.organization?.name ?? detail.organization?.id ?? ''),
       comments: detail.comments?.length ?? 0,
     });
 

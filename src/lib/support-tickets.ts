@@ -1,4 +1,5 @@
 import {Flags} from '@oclif/core';
+import type {BooleanFlag, OptionFlag} from '@oclif/core/interfaces';
 import {apiRequest} from './rest.js';
 
 /**
@@ -34,11 +35,20 @@ export const MAX_COMMENT_LENGTH = 65_536;
  */
 export const MAX_BODY_LENGTH = 65_536;
 
-/** Head-and-tail view of a long value, so a preview stays readable and honest about size. */
+/**
+ * Head-and-tail view of a long value, so a preview stays readable and honest about
+ * size. `tailChars = 0` gives a head-only view.
+ *
+ * NOTE the explicit `tailChars > 0` guard: `slice(-0)` is `slice(0)`, i.e. the whole
+ * string, so the obvious one-liner printed the entire text *and* labelled it as
+ * truncated — worst of both, since the point is to keep a confirmation warning on
+ * screen.
+ */
 export function abbreviate(text: string, headChars = 600, tailChars = 200): string {
   if (text.length <= headChars + tailChars) return text;
   const omitted = text.length - headChars - tailChars;
-  return `${text.slice(0, headChars)}\n… [${omitted} characters omitted] …\n${text.slice(-tailChars)}`;
+  const tail = tailChars > 0 ? `\n${text.slice(-tailChars)}` : '';
+  return `${text.slice(0, headChars)}\n… [${omitted} characters omitted] …${tail}`;
 }
 
 /**
@@ -250,6 +260,24 @@ export function validateEnumFilter(flagName: string, value: string, allowed: rea
  * still come back as HTTP 400, exactly the round trip the local check exists to
  * avoid. Send what we validated.
  */
+/**
+ * Normalizes a sort expression to what the API matches on.
+ *
+ * `validateSort` accepts `createdAt:desc` case-insensitively, so it must be sent
+ * uppercased — otherwise validation passes and the API silently ignores the
+ * direction, the same class of bug `normalizeEnumFilter` exists to prevent.
+ */
+export function normalizeSort(sort: string): string {
+  return sort
+    .split(',')
+    .filter(Boolean)
+    .map((part) => {
+      const [field, direction] = part.trim().split(':');
+      return direction === undefined ? field : `${field}:${direction.toUpperCase()}`;
+    })
+    .join(',');
+}
+
 export function normalizeEnumFilter(value: string): string {
   return value
     .split(',')
@@ -349,11 +377,29 @@ export function buildCreateTicketPayload(flags: CreateTicketFlags, tenantOrgId?:
   return payload;
 }
 
+/** Flag name of every field in {@link CREATE_TICKET_FIELDS}. */
+export type CreateTicketFlagName = (typeof CREATE_TICKET_FIELDS)[number]['flag'];
+
+type CreateTicketField<Name extends CreateTicketFlagName> = Extract<(typeof CREATE_TICKET_FIELDS)[number], {flag: Name}>;
+
+/** Boolean fields parse to `boolean`, everything else to `string | undefined`. */
+type CreateTicketFlag<Name extends CreateTicketFlagName> =
+  CreateTicketField<Name> extends {type: 'boolean'} ? BooleanFlag<boolean> : OptionFlag<string | undefined>;
+
+/** Exact per-flag types, so `flags['sdk-version']` is a `string` and not a union with `boolean`. */
+export type CreateTicketFlagDefinitions = {[Name in CreateTicketFlagName]: CreateTicketFlag<Name>};
+
 /**
  * oclif flag definitions derived from {@link CREATE_TICKET_FIELDS}, so the flags and
  * the payload mapping cannot diverge. Spread into a command's `flags`.
+ *
+ * The return type names every flag explicitly. `Object.fromEntries` alone widens to
+ * `{[k: string]: Flag}`, which erases the keys from oclif's parsed-flags type — then
+ * `flags['sdk-version']` stops compiling and the only thing keeping the command
+ * building is a cast, leaving no compile-time check anywhere on the flag→payload
+ * chain.
  */
-export function createTicketFlags() {
+export function createTicketFlags(): CreateTicketFlagDefinitions {
   const entries = CREATE_TICKET_FIELDS.map((field) => {
     const flag =
       'type' in field && field.type === 'boolean'
@@ -366,7 +412,7 @@ export function createTicketFlags() {
     return [field.flag, flag] as const;
   });
 
-  return Object.fromEntries(entries);
+  return Object.fromEntries(entries) as CreateTicketFlagDefinitions;
 }
 
 /**

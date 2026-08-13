@@ -102,6 +102,59 @@ describe('buildCreateTicketPayload', () => {
   });
 });
 
+describe('CREATE_TICKET_FIELDS', () => {
+  it('maps every flag to its API payload key', async () => {
+    // The table is the single source of truth for the flags AND the payload keys, so
+    // without this a key could be renamed (`subject` -> `title`) or an entry deleted
+    // and nothing would notice: the field would simply stop reaching the API. The
+    // assertion is exhaustive on purpose — a new field must be added here too.
+    const {CREATE_TICKET_FIELDS, buildCreateTicketPayload} = await import('../../src/lib/support-tickets.js');
+
+    const flags = Object.fromEntries(
+      CREATE_TICKET_FIELDS.map((field) => [
+        field.flag,
+        'type' in field && field.type === 'boolean' ? true : 'values' in field ? Object.keys(field.values)[0] : `v-${field.flag}`,
+      ]),
+    );
+
+    const payload = buildCreateTicketPayload({...flags, body: 'b', category: 'encoding'}, 'org-1');
+
+    expect(payload).toEqual({
+      body: 'b',
+      category: 'encoding',
+      organizationId: 'org-1',
+      subject: 'v-subject',
+      priority: 'v-priority',
+      severity: 'v-severity',
+      platform: 'v-platform',
+      sdkVersion: 'v-sdk-version',
+      encodingId: 'v-encoding-id',
+      license: 'v-license',
+      pageUrl: 'v-page-url',
+      allowFileAccess: true,
+      inputUrl: 'v-input-url',
+      requestType: 'technical_question',
+      referenceId: 'v-reference-id',
+      reproducibleWithSampleApp: 'player_sample_app_yes',
+      reproducibleReliably: 'reprod_yes',
+      osDetails: 'v-os-details',
+      deviceDetails: 'v-device-details',
+      geoRestrictionCountry: 'v-geo-restriction-country',
+    });
+  });
+
+  it('exposes an oclif flag for every field, with the documented choices', async () => {
+    const {CREATE_TICKET_FIELDS, createTicketFlags} = await import('../../src/lib/support-tickets.js');
+    const flags = createTicketFlags();
+
+    expect(Object.keys(flags).sort()).toEqual(CREATE_TICKET_FIELDS.map((f) => f.flag).sort());
+    // A value-mapped field must restrict its input, or an unmapped value reaches
+    // buildCreateTicketPayload and becomes `undefined` in the payload.
+    expect((flags['request-type'] as {options?: string[]}).options).toEqual(['technical-question', 'unexpected-behaviour', 'feature-suggestion', 'additional-assistance']);
+    expect((flags['allow-file-access'] as {type?: string}).type).toBe('boolean');
+  });
+});
+
 describe('validateCreateTicketPayload', () => {
   it('accepts a minimal payload', () => {
     expect(validateCreateTicketPayload({body: 'x', category: 'other'})).toBeUndefined();
@@ -162,6 +215,34 @@ describe('normalizeEnumFilter', () => {
   });
 });
 
+describe('normalizeSort', () => {
+  it('uppercases the direction so the API honours it', async () => {
+    const {normalizeSort} = await import('../../src/lib/support-tickets.js');
+    // validateSort accepts a lowercase direction case-insensitively, so sending it
+    // raw would pass validation and then be silently ignored by the API.
+    expect(normalizeSort('createdAt:desc')).toBe('createdAt:DESC');
+    expect(normalizeSort('createdAt')).toBe('createdAt');
+    expect(normalizeSort(' createdAt:asc , modifiedAt:desc ')).toBe('createdAt:ASC,modifiedAt:DESC');
+  });
+});
+
+describe('latestComment', () => {
+  it('picks the newest comment, which is the state the collision stamp matches', async () => {
+    const {latestComment} = await import('../../src/lib/support-tickets.js');
+    const ticket = {
+      comments: [
+        {id: 1, body: 'first', createdAt: '2026-08-01T10:00:00.000Z'},
+        {id: 3, body: 'newest', createdAt: '2026-08-03T10:00:00.000Z'},
+        {id: 2, body: 'middle', createdAt: '2026-08-02T10:00:00.000Z'},
+      ],
+    };
+
+    expect(latestComment(ticket)?.id).toBe(3);
+    expect(latestComment({comments: []})).toBeUndefined();
+    expect(latestComment({})).toBeUndefined();
+  });
+});
+
 describe('category gating for --allow-file-access', () => {
   it('rejects it outside --category encoding, because the API silently drops it', async () => {
     const {validateCreateTicketPayload} = await import('../../src/lib/support-tickets.js');
@@ -192,5 +273,26 @@ describe('abbreviate', () => {
     const {abbreviate} = await import('../../src/lib/support-tickets.js');
     expect(abbreviate('x'.repeat(50), 10, 5)).toContain('35 characters omitted');
     expect(abbreviate('short', 10, 5)).toBe('short');
+  });
+
+  it('keeps the head and the tail, nothing in between', async () => {
+    const {abbreviate} = await import('../../src/lib/support-tickets.js');
+    const text = 'H'.repeat(10) + 'M'.repeat(30) + 'T'.repeat(5);
+
+    const result = abbreviate(text, 10, 5);
+    expect(result.startsWith('H'.repeat(10))).toBe(true);
+    expect(result.endsWith('T'.repeat(5))).toBe(true);
+    expect(result).not.toContain('M');
+  });
+
+  it('is head-only with tailChars 0, and actually bounded', async () => {
+    // slice(-0) is slice(0) — the whole string. The naive one-liner printed the
+    // entire text while labelling it truncated, which is worse than not truncating
+    // at all: the confirmation warning scrolls away AND the label lies.
+    const {abbreviate} = await import('../../src/lib/support-tickets.js');
+    const result = abbreviate('x'.repeat(5000), 300, 0);
+
+    expect(result.length).toBeLessThan(400);
+    expect(result).toContain('4700 characters omitted');
   });
 });

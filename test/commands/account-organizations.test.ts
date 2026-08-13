@@ -90,7 +90,7 @@ describe('account organizations list', () => {
     const {listOrganizations, toOrganizationRows} = await import('../../src/lib/organizations.js');
     apiRequest.mockClear();
 
-    const orgs = await listOrganizations({} as never, undefined, 2);
+    const orgs = await listOrganizations(undefined, 2);
 
     expect(apiRequest).toHaveBeenCalledTimes(2);
     expect(apiRequest).toHaveBeenNthCalledWith(1, '/account/organizations', expect.objectContaining({query: {limit: 2, offset: 0}}));
@@ -106,7 +106,7 @@ describe('account organizations list', () => {
     apiRequest.mockClear();
     apiRequest.mockImplementationOnce(async () => ({items: organizations.slice(0, 1), totalCount: 9}));
 
-    await expect(listOrganizations({} as never, undefined, 2)).rejects.toThrow(/only 1 of 9 organizations/);
+    await expect(listOrganizations(undefined, 2)).rejects.toThrow(/only 1 of 9 organizations/);
   });
 
   it('filters to the sub-organizations of a parent', async () => {
@@ -143,4 +143,30 @@ describe('account organizations list', () => {
     expect(out).toContain('SUB_ORGANIZATION');
     expect(out).toContain('root-1');
   });
+});
+
+describe('organization listing scope and bounds', () => {
+  it('forwards --api-key so the listing follows the credential you asked for', async () => {
+    // Both organization commands previously hand-threaded this; if it is dropped the
+    // command silently lists the config key's organizations instead.
+    apiRequest.mockClear();
+    const cap = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/account/organizations/list.js');
+    await Cmd.run(['--api-key', 'other-account-key', '--json']);
+    cap.restore();
+
+    expect(apiRequest).toHaveBeenCalledWith('/account/organizations', expect.objectContaining({apiKey: 'other-account-key'}));
+  });
+
+  it('stops instead of looping forever when the API ignores the offset', async () => {
+    // A proxy that strips query parameters would otherwise return the same full page
+    // for every offset and the loop would never end.
+    const {listOrganizations} = await import('../../src/lib/organizations.js');
+    apiRequest.mockClear();
+    apiRequest.mockImplementation(async () => ({items: [{id: 'a'}, {id: 'b'}]}));
+
+    await expect(listOrganizations(undefined, 2)).rejects.toThrow(/does not appear to be honouring the pagination offset/);
+    // Explicit timeout: if the bound is ever removed this must fail fast rather than
+    // hanging CI on an unbounded loop.
+  }, 10_000);
 });

@@ -16,6 +16,7 @@ export default class AccountOrganizationsList extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
+    ...BaseCommand.tenantOrgFlag,
     parent: Flags.string({
       description: 'Show only the sub-organizations of this organization',
       helpValue: '<org-id>',
@@ -37,7 +38,8 @@ export default class AccountOrganizationsList extends BaseCommand {
   async run(): Promise<void> {
     const {flags} = await this.parse(AccountOrganizationsList);
     const config = loadConfig();
-    const orgs = await listOrganizations(await this.getApi(), flags['api-key'] as string | undefined);
+    const scope = await this.requestScope();
+    const orgs = await listOrganizations(scope.apiKey);
     const rows = toOrganizationRows(orgs, config.tenantOrgId);
 
     let selected = rows;

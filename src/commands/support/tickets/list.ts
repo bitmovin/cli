@@ -8,6 +8,7 @@ import {
   TICKET_STATUSES,
   listTickets,
   normalizeEnumFilter,
+  normalizeSort,
   sanitizeForTerminal,
   validateEnumFilter,
   validatePagination,
@@ -68,7 +69,7 @@ export default class SupportTicketsList extends BaseCommand {
         priority: flags.priority === undefined ? undefined : normalizeEnumFilter(flags.priority),
         severity: flags.severity === undefined ? undefined : normalizeEnumFilter(flags.severity),
         searchText: flags.search,
-        sort: flags.sort,
+        sort: flags.sort === undefined ? undefined : normalizeSort(flags.sort),
       },
       await this.requestScope(),
     );

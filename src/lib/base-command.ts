@@ -90,7 +90,7 @@ export abstract class BaseCommand extends Command {
           } else {
             lines.push('  Your API key does not have permission for this resource.');
             lines.push('  You may need to select an organization:');
-            lines.push('    bitmovin config list organizations');
+            lines.push('    bitmovin account organizations list');
             lines.push('    bitmovin config set organization <id>');
           }
 
@@ -102,6 +102,22 @@ export abstract class BaseCommand extends Command {
           if (err.developerMessage) {
             lines.push(`  ${err.developerMessage}`);
           }
+          break;
+        case 409:
+          // The support-ticket comment flow sends the ticket state it read as a
+          // collision stamp, so this is the expected answer when someone replied
+          // while the user was deciding. Without this the promised protection
+          // surfaces as a bare "API error: 409".
+          lines.push(chalk.red('The resource changed since you last read it.'));
+          lines.push('');
+          lines.push('  Someone updated it in the meantime, so the change was not applied.');
+          lines.push('  Re-read it and try again — for a support ticket:');
+          lines.push('    bitmovin support tickets get <case-id>');
+          if (err.developerMessage) {
+            lines.push('');
+            lines.push(`  ${err.developerMessage}`);
+          }
+
           break;
         default:
           lines.push(chalk.red(`API error: ${err.httpStatusCode}`));
@@ -127,6 +143,22 @@ export abstract class BaseCommand extends Command {
         }, null, 2) + '\n');
       } else {
         process.stderr.write(lines.join('\n') + '\n');
+      }
+
+      this.exit(1);
+      return;
+    }
+
+    // A transport failure carries no httpStatusCode, so without this the user gets a
+    // bare `TypeError: fetch failed` and a stack trace. It matters most for a write:
+    // a timeout after the request was sent leaves the outcome genuinely unknown, and
+    // the message has to say so rather than implying a retry is safe.
+    const transport = describeTransportFailure(err);
+    if (transport) {
+      if (this._jsonMode?.enabled) {
+        process.stdout.write(JSON.stringify({error: true, message: transport.summary}, null, 2) + '\n');
+      } else {
+        process.stderr.write([chalk.red(transport.summary), '', ...transport.detail.map((line) => `  ${line}`)].join('\n') + '\n');
       }
 
       this.exit(1);
@@ -233,4 +265,39 @@ export abstract class BaseCommand extends Command {
     const table = await this.useTable();
     process.stdout.write(formatTable(items, columns, table) + '\n');
   }
+}
+
+/**
+ * Recognises a transport-level failure (no HTTP response, so no `httpStatusCode`)
+ * and describes it in terms the user can act on.
+ *
+ * The timeout wording is deliberately non-committal about whether the request took
+ * effect: `AbortSignal.timeout` fires after the request was sent, so for a create or
+ * comment the ticket may well exist. Telling the user to "just retry" could file it
+ * twice.
+ */
+function describeTransportFailure(err: Error): {summary: string; detail: string[]} | undefined {
+  if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+    return {
+      summary: 'The request to the Bitmovin API timed out.',
+      detail: [
+        'The request was sent but no response arrived in time, so whether it took effect is unknown.',
+        'Check the current state before retrying — a write may already have been applied:',
+        '  bitmovin support tickets list',
+      ],
+    };
+  }
+
+  // undici surfaces DNS/TLS/connection failures as a TypeError with a cause.
+  if (err instanceof TypeError && /fetch failed|network|socket|ENOTFOUND|ECONN/i.test(`${err.message} ${String((err as {cause?: unknown}).cause ?? '')}`)) {
+    return {
+      summary: 'Could not reach the Bitmovin API.',
+      detail: [
+        'Check your network connection, VPN, and any proxy settings, then try again.',
+        'Nothing was sent, so no change was made.',
+      ],
+    };
+  }
+
+  return undefined;
 }

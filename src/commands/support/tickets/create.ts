@@ -11,7 +11,6 @@ import {
   createTicket,
   createTicketFlags,
   validateCreateTicketPayload,
-  type CreateTicketFlags,
 } from '../../../lib/support-tickets.js';
 
 export default class SupportTicketsCreate extends BaseCommand {
@@ -41,7 +40,7 @@ export default class SupportTicketsCreate extends BaseCommand {
     const scope = await this.requestScope();
 
     const body = this.resolveBody(flags.body, flags['body-file']);
-    const payload = buildCreateTicketPayload({...flags, body} as CreateTicketFlags, scope.tenantOrgId);
+    const payload = buildCreateTicketPayload({...flags, body}, scope.tenantOrgId);
 
     const problem = validateCreateTicketPayload(payload);
     if (problem) this.error(problem, {exit: 2});
@@ -74,7 +73,10 @@ export default class SupportTicketsCreate extends BaseCommand {
   }
 
   private resolveBody(body?: string, bodyFile?: string): string {
-    if (body !== undefined) return body;
+    // The bound applies to --body too: the reason for it (keeping the confirmation
+    // warning on screen, and not inlining a huge blob into a ticket that cannot be
+    // withdrawn) is identical for `--body "$(cat big.log)"`.
+    if (body !== undefined) return this.boundBody(body, '--body');
 
     if (bodyFile === undefined) {
       this.error('A ticket body is required. Pass --body "<text>" or --body-file <path>.', {exit: 2});
@@ -87,18 +89,24 @@ export default class SupportTicketsCreate extends BaseCommand {
       this.error(`Could not read --body-file ${bodyFile}: ${err instanceof Error ? err.message : String(err)}`, {exit: 2});
     }
 
-    // Bounded because the whole file is transmitted into a ticket that cannot be
-    // withdrawn via the API, and because an enormous body scrolls the warning
-    // above off screen — degrading the confirmation exactly when it matters most.
-    if (contents.length > MAX_BODY_LENGTH) {
+    return this.boundBody(contents, `--body-file ${bodyFile}`);
+  }
+
+  /**
+   * Bounded because the text is transmitted into a ticket that cannot be withdrawn
+   * via the API, and because an enormous body scrolls the confirmation warning off
+   * screen — degrading the safety check exactly when it matters most.
+   */
+  private boundBody(text: string, source: string): string {
+    if (text.length > MAX_BODY_LENGTH) {
       this.error(
-        `--body-file ${bodyFile} is ${contents.length} characters; the maximum is ${MAX_BODY_LENGTH}.\n` +
+        `${source} is ${text.length} characters; the maximum is ${MAX_BODY_LENGTH}.\n` +
         '  Attach large files to the ticket in the dashboard instead of inlining them.',
         {exit: 2},
       );
     }
 
-    return contents;
+    return text;
   }
 
   private renderPreview(payload: Record<string, unknown>, tenantOrgId?: string, jsonMode = false): string {

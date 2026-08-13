@@ -17,9 +17,9 @@ export default class ConfigListOrganizations extends BaseCommand {
   ];
 
   async run(): Promise<void> {
-    const {flags} = await this.parse(ConfigListOrganizations);
     const config = loadConfig();
-    const orgs = await listOrganizations(await this.getApi(), flags['api-key'] as string | undefined);
+    const scope = await this.requestScope();
+    const orgs = await listOrganizations(scope.apiKey);
     // Sub-orgs come from the parentId of the flat listing — see
     // lib/organizations.ts for why the sub-organizations endpoint is avoided.
     const allOrgs = toOrganizationRows(orgs, config.tenantOrgId).map((row) => ({
@@ -39,13 +39,20 @@ export default class ConfigListOrganizations extends BaseCommand {
       return;
     }
 
+    // Indent only when the parent is actually in this listing. `toOrganizationRows`
+    // emits a sub-org whose parent is invisible to the credential at top level (so
+    // nothing is hidden), and indenting on `parent` alone would nest it under
+    // whichever unrelated root happened to precede it — asserting a relationship
+    // that does not exist.
+    const visible = new Set(allOrgs.map((org) => org.id));
     const lines: string[] = [''];
     for (const org of allOrgs) {
       const marker = org.active ? chalk.green(' (active)') : '';
-      if (org.parent) {
+      if (org.parent && visible.has(org.parent)) {
         lines.push(`    └─ ${chalk.dim(org.id)}  ${org.name}${marker}`);
       } else {
-        lines.push(`  ${chalk.bold(org.id)}  ${org.name}${marker}`);
+        const orphan = org.parent ? chalk.dim(`  (sub-org of ${org.parent}, not visible to these credentials)`) : '';
+        lines.push(`  ${chalk.bold(org.id)}  ${org.name}${marker}${orphan}`);
       }
     }
 

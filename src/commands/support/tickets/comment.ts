@@ -113,7 +113,11 @@ export default class SupportTicketsComment extends BaseCommand {
       chalk.yellow.bold('This posts a PUBLIC comment on a real support ticket.'),
       chalk.yellow('Bitmovin support sees it immediately and it cannot be withdrawn via the API.'),
       '',
-      chalk.bold('Ticket:  ') + `${caseId}${subject ? ` — ${subject}` : ''}${status ? chalk.dim(` [${status}]`) : ''}`,
+      // Sanitized: a subject is chosen by whoever opened the ticket, and escape
+      // sequences here could overwrite the warning lines immediately above the
+      // y/N prompt.
+      chalk.bold('Ticket:  ') +
+        `${caseId}${subject ? ` — ${sanitizeForTerminal(subject)}` : ''}${status ? chalk.dim(` [${status}]`) : ''}`,
     ];
 
     // Shown so the user is replying to the state the collision stamp was taken

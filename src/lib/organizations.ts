@@ -1,5 +1,4 @@
 import type {Organization} from '@bitmovin/api-sdk';
-import type {ApiClient} from './client.js';
 import {apiRequest} from './rest.js';
 
 export const ROOT_ORGANIZATION = 'ROOT_ORGANIZATION';
@@ -27,16 +26,32 @@ export const ORGANIZATION_COLUMNS = ['id', 'name', 'type', 'parentId', 'active']
  * that are plainly visible in this listing, so the hierarchy is derived from
  * `parentId` instead.
  *
+ * Takes no SDK client on purpose: the SDK cannot express this call (see below), so
+ * constructing one would resolve credentials and refresh OAuth for an object that is
+ * then discarded.
+ *
  * Paged through the REST helper rather than the SDK: `organizations.list()` takes
  * no arguments, so it silently returns only the API's default first page. On an
  * account with more organizations than that page holds, sub-orgs whose parent sits
  * on a later page would be rendered as roots, and `--parent` would report a
  * visible organization as invisible.
  */
-export async function listOrganizations(_api: ApiClient, apiKey?: string, pageSize = 100): Promise<Organization[]> {
+export async function listOrganizations(apiKey?: string, pageSize = 100): Promise<Organization[]> {
   const items: Organization[] = [];
+  // Bounded so a server that ignores `offset` (a proxy stripping query parameters,
+  // say, returning the same full page forever) makes the command fail instead of
+  // looping and growing `items` without limit. 100 pages is far beyond any real
+  // account at this page size.
+  const maxPages = 100;
 
-  for (let offset = 0; ; offset += pageSize) {
+  for (let pageNumber = 0, offset = 0; ; pageNumber++, offset += pageSize) {
+    if (pageNumber >= maxPages) {
+      throw new Error(
+        `Stopped after ${maxPages} pages of organizations (${items.length} collected). The API does not appear to be ` +
+        'honouring the pagination offset. Please report this.',
+      );
+    }
+
     const page = await apiRequest<{items?: Organization[]; totalCount?: number}>('/account/organizations', {
       query: {limit: pageSize, offset},
       apiKey,
