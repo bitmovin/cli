@@ -1,7 +1,6 @@
 import {Args, Flags} from '@oclif/core';
 import chalk from 'chalk';
 import {BaseCommand} from '../../../lib/base-command.js';
-import {organizationFlag, resolveTenantOrgId} from '../../../lib/organizations.js';
 import {getTicket, sanitizeForTerminal, type SupportTicketComment} from '../../../lib/support-tickets.js';
 
 export default class SupportTicketsGet extends BaseCommand {
@@ -13,7 +12,7 @@ export default class SupportTicketsGet extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    organization: organizationFlag,
+    ...BaseCommand.tenantOrgFlag,
     'show-secrets': Flags.boolean({
       description: 'Show attachment download URLs, which grant access to the file to anyone holding the link',
       default: false,
@@ -28,10 +27,7 @@ export default class SupportTicketsGet extends BaseCommand {
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(SupportTicketsGet);
-    const detail = await getTicket(args.id, {
-      tenantOrgId: resolveTenantOrgId(flags.organization),
-      apiKey: flags['api-key'] as string | undefined,
-    });
+    const detail = await getTicket(args.id, await this.requestScope());
 
     if (await this.isJsonMode()) {
       await this.outputData(detail);

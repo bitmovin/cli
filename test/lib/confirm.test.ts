@@ -58,3 +58,49 @@ describe('confirmAction', () => {
     await expect(confirmAction('File this?')).resolves.toBe(true);
   });
 });
+
+describe('confirmDestructive', () => {
+  it('fails closed: never proceeds when it cannot ask and was not told to', async () => {
+    const {confirmDestructive} = await import('../../src/lib/confirm.js');
+
+    for (const [jsonMode, stdin, stdout] of [
+      [true, true, true], // JSON mode: prompting would corrupt stdout
+      [false, false, true],
+      [false, true, false],
+      [false, false, false],
+    ] as [boolean, boolean, boolean][]) {
+      const restore = withTty(stdin, stdout);
+      await expect(
+        confirmDestructive({jsonMode, yes: false, question: 'File this?'}),
+        `jsonMode=${jsonMode} stdin=${stdin} stdout=${stdout}`,
+      ).resolves.toBe('unconfirmable');
+      restore();
+    }
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it('proceeds without asking when --yes is given', async () => {
+    const {confirmDestructive} = await import('../../src/lib/confirm.js');
+    const restore = withTty(false, false);
+
+    await expect(confirmDestructive({jsonMode: true, yes: true, question: 'File this?'})).resolves.toBe('proceed');
+    restore();
+    expect(confirmSpy).not.toHaveBeenCalled();
+  });
+
+  it('distinguishes a declined prompt from an unaskable one', async () => {
+    // Separate outcomes on purpose: "the user said no" and "nobody could be asked"
+    // warrant different exit codes, and collapsing them is how a scripted run ends
+    // up filing something silently.
+    const {confirmDestructive} = await import('../../src/lib/confirm.js');
+    const restore = withTty(true, true);
+
+    confirmSpy.mockResolvedValue(false);
+    await expect(confirmDestructive({jsonMode: false, yes: false, question: 'File this?'})).resolves.toBe('declined');
+
+    confirmSpy.mockResolvedValue(true);
+    await expect(confirmDestructive({jsonMode: false, yes: false, question: 'File this?'})).resolves.toBe('proceed');
+    restore();
+  });
+});

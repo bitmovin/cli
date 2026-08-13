@@ -1,6 +1,5 @@
 import {Flags} from '@oclif/core';
 import {BaseCommand} from '../../../lib/base-command.js';
-import {organizationFlag, resolveTenantOrgId} from '../../../lib/organizations.js';
 import {
   TICKET_CATEGORIES,
   TICKET_PRIORITIES,
@@ -23,7 +22,7 @@ export default class SupportTicketsList extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    organization: organizationFlag,
+    ...BaseCommand.tenantOrgFlag,
     limit: Flags.integer({description: 'Max results (1-100)', default: 25}),
     offset: Flags.integer({description: 'Offset for pagination; must be 0 or a multiple of --limit', default: 0}),
     status: Flags.string({description: `Filter by status, comma-separated (${TICKET_STATUSES.join(', ')})`}),
@@ -71,7 +70,7 @@ export default class SupportTicketsList extends BaseCommand {
         searchText: flags.search,
         sort: flags.sort,
       },
-      {tenantOrgId: resolveTenantOrgId(flags.organization), apiKey: flags['api-key'] as string | undefined},
+      await this.requestScope(),
     );
 
     // Subjects are attacker-influenceable (anyone who can open a ticket picks one),

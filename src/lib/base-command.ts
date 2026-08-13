@@ -1,6 +1,7 @@
 import {Command, Flags} from '@oclif/core';
 import chalk from 'chalk';
 import {getClient, type ApiClient} from './client.js';
+import {resolveTenantOrgId} from './tenant.js';
 import {formatJson, formatTable, formatKeyValue, isTTY} from './output.js';
 import {applyJq} from './jq.js';
 import {loadConfig} from './config.js';
@@ -25,6 +26,20 @@ export abstract class BaseCommand extends Command {
     }),
     'api-key': Flags.string({description: 'Override API key'}),
     quiet: Flags.boolean({char: 'q', description: 'Suppress non-essential output'}),
+  };
+
+  /**
+   * `--organization` (alias `--tenant-org`) for commands that can act on a
+   * sub-organization. Spread into a command's flags alongside {@link baseFlags};
+   * {@link requestScope} then applies it to SDK and REST calls alike, so declaring
+   * it can never leave it silently ignored.
+   */
+  static tenantOrgFlag = {
+    organization: Flags.string({
+      description: 'Organization to act on (sub-org id); sent as X-Tenant-Org-Id. Defaults to the configured organization.',
+      aliases: ['tenant-org'],
+      helpValue: '<org-id>',
+    }),
   };
 
   private _parsedFlags?: Record<string, unknown>;
@@ -135,10 +150,27 @@ export abstract class BaseCommand extends Command {
     return this._parsedFlags;
   }
 
+  /**
+   * The credential and organization scope for one invocation, derived from the
+   * parsed flags in one place.
+   *
+   * Commands pass this straight to the REST helper instead of threading
+   * `flags['api-key']` and the organization by hand — so a new credential-affecting
+   * base flag (a `--profile`, say) is wired up here once rather than in every
+   * command, and REST-backed commands cannot drift from SDK-backed ones.
+   */
+  protected async requestScope(): Promise<{apiKey?: string; tenantOrgId?: string}> {
+    const flags = await this.parseFlags();
+    return {
+      apiKey: flags['api-key'] as string | undefined,
+      tenantOrgId: resolveTenantOrgId(flags.organization as string | undefined, loadConfig().tenantOrgId),
+    };
+  }
+
   protected async getApi(): Promise<ApiClient> {
     if (!this._api) {
-      const flags = await this.parseFlags();
-      this._api = await getClient(flags['api-key'] as string | undefined);
+      const scope = await this.requestScope();
+      this._api = await getClient(scope.apiKey, scope.tenantOrgId);
     }
 
     return this._api;

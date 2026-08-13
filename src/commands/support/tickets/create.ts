@@ -2,19 +2,14 @@ import {readFileSync} from 'node:fs';
 import {Flags} from '@oclif/core';
 import chalk from 'chalk';
 import {BaseCommand} from '../../../lib/base-command.js';
-import {canPrompt, confirmAction} from '../../../lib/confirm.js';
-import {organizationFlag, resolveTenantOrgId} from '../../../lib/organizations.js';
+import {confirmDestructive, yesFlag} from '../../../lib/confirm.js';
 import {
-  REPRODUCIBLE_RELIABLY,
-  REPRODUCIBLE_WITH_SAMPLE_APP,
-  REQUEST_TYPES,
-  TICKET_CATEGORIES,
-  TICKET_PRIORITIES,
   MAX_BODY_LENGTH,
-  TICKET_SEVERITIES,
+  TICKET_CATEGORIES,
   abbreviate,
   buildCreateTicketPayload,
   createTicket,
+  createTicketFlags,
   validateCreateTicketPayload,
   type CreateTicketFlags,
 } from '../../../lib/support-tickets.js';
@@ -25,39 +20,14 @@ export default class SupportTicketsCreate extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    organization: organizationFlag,
+    ...BaseCommand.tenantOrgFlag,
     body: Flags.string({description: 'Ticket body (what happened, what you expected)', exclusive: ['body-file']}),
     'body-file': Flags.string({description: 'Read the ticket body from a file ("-" is not supported)', exclusive: ['body']}),
     category: Flags.string({description: 'Product the ticket is about', options: [...TICKET_CATEGORIES], required: true}),
-    subject: Flags.string({description: 'Ticket subject'}),
-    priority: Flags.string({description: 'Ticket priority', options: [...TICKET_PRIORITIES]}),
-    severity: Flags.string({description: 'Ticket severity', options: [...TICKET_SEVERITIES]}),
-    platform: Flags.string({description: 'Affected platform (e.g. web, android, ios, roku)'}),
-    'sdk-version': Flags.string({description: 'SDK / player version in use'}),
-    'encoding-id': Flags.string({description: 'Affected encoding ID (requires --category encoding)'}),
-    license: Flags.string({description: 'Affected license key (requires --category player or analytics)'}),
-    'page-url': Flags.string({description: 'URL where the issue reproduces (requires --category player or analytics)'}),
-    'allow-file-access': Flags.boolean({description: 'Allow Bitmovin support to access the referenced files'}),
-    'input-url': Flags.string({description: 'Input / stream URL involved'}),
-    'request-type': Flags.string({description: 'Kind of request', options: Object.keys(REQUEST_TYPES)}),
-    'reference-id': Flags.string({description: 'Your own reference (e.g. internal ticket id)'}),
-    'reproducible-with-sample-app': Flags.string({
-      description: 'Whether the issue reproduces in the Bitmovin sample app',
-      options: Object.keys(REPRODUCIBLE_WITH_SAMPLE_APP),
-    }),
-    'reproducible-reliably': Flags.string({
-      description: 'Whether the issue reproduces reliably',
-      options: Object.keys(REPRODUCIBLE_RELIABLY),
-    }),
-    'os-details': Flags.string({description: 'Operating system details'}),
-    'device-details': Flags.string({description: 'Device details'}),
-    'geo-restriction-country': Flags.string({description: 'Country the issue is restricted to'}),
-    yes: Flags.boolean({
-      char: 'y',
-      aliases: ['confirm'],
-      description: 'Skip the confirmation prompt (required for non-interactive use)',
-      default: false,
-    }),
+    // The remaining fields come from CREATE_TICKET_FIELDS, so the flags, their
+    // accepted values, and the payload keys cannot drift apart.
+    ...createTicketFlags(),
+    yes: yesFlag,
   };
 
   static override examples = [
@@ -68,10 +38,10 @@ export default class SupportTicketsCreate extends BaseCommand {
 
   async run(): Promise<void> {
     const {flags} = await this.parse(SupportTicketsCreate);
+    const scope = await this.requestScope();
 
     const body = this.resolveBody(flags.body, flags['body-file']);
-    const tenantOrgId = resolveTenantOrgId(flags.organization);
-    const payload = buildCreateTicketPayload({...flags, body} as CreateTicketFlags, tenantOrgId);
+    const payload = buildCreateTicketPayload({...flags, body} as CreateTicketFlags, scope.tenantOrgId);
 
     const problem = validateCreateTicketPayload(payload);
     if (problem) this.error(problem, {exit: 2});
@@ -81,26 +51,24 @@ export default class SupportTicketsCreate extends BaseCommand {
     // leaves a record of what was filed and against which organization, without
     // polluting the JSON on stdout.
     const jsonMode = await this.isJsonMode();
-    process.stderr.write(this.renderPreview(payload, tenantOrgId, jsonMode));
+    process.stderr.write(this.renderPreview(payload, scope.tenantOrgId, jsonMode));
 
-    if (!flags.yes) {
-      if (jsonMode || !canPrompt()) {
-        this.error(
-          'Creating a support ticket requires confirmation.\n' +
-          '  This files a real ticket that Bitmovin support engineers see and that cannot be withdrawn via the API.\n' +
-          '  Re-run interactively, or pass --yes to confirm non-interactively.',
-          {exit: 2},
-        );
-      }
-
-      const proceed = await confirmAction('File this support ticket with Bitmovin support?');
-      if (!proceed) {
-        this.log('Aborted. No ticket was created.');
-        return;
-      }
+    const outcome = await confirmDestructive({jsonMode, yes: flags.yes, question: 'File this support ticket with Bitmovin support?'});
+    if (outcome === 'unconfirmable') {
+      this.error(
+        'Creating a support ticket requires confirmation.\n' +
+        '  This files a real ticket that Bitmovin support engineers see and that cannot be withdrawn via the API.\n' +
+        '  Re-run interactively, or pass --yes to confirm non-interactively.',
+        {exit: 2},
+      );
     }
 
-    const result = await createTicket(payload, {tenantOrgId, apiKey: flags['api-key'] as string | undefined});
+    if (outcome === 'declined') {
+      this.log('Aborted. No ticket was created.');
+      return;
+    }
+
+    const result = await createTicket(payload, scope);
     this.log(`Support ticket created: ${result.id ?? '(no id returned)'}`);
     await this.outputData(result);
   }
@@ -137,7 +105,6 @@ export default class SupportTicketsCreate extends BaseCommand {
     // The body is shown head-and-tail so the warning and the organization stay on
     // screen for a long --body-file, while still showing what is actually sent.
     const {body, ...rest} = payload as {body?: string} & Record<string, unknown>;
-    const shown = JSON.stringify(rest, null, 2);
     const lines = [
       '',
       chalk.yellow.bold('This files a REAL support ticket with Bitmovin support.'),
@@ -145,7 +112,7 @@ export default class SupportTicketsCreate extends BaseCommand {
       '',
       chalk.bold('Organization: ') + (tenantOrgId ?? chalk.dim('(the organization of your credentials)')),
       chalk.bold('Fields:'),
-      shown,
+      JSON.stringify(rest, null, 2),
       chalk.bold(`Body (${body?.length ?? 0} characters):`),
       abbreviate(body ?? ''),
       '',

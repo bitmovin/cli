@@ -54,9 +54,12 @@ const NO_CREDENTIALS_MESSAGE =
   '    bitmovin config set api-key <your-api-key>  # API key from https://dashboard.bitmovin.com/account\n' +
   '  Or set the BITMOVIN_API_KEY environment variable.\n';
 
-export async function getClient(apiKeyOverride?: string): Promise<ApiClient> {
+export async function getClient(apiKeyOverride?: string, tenantOrgIdOverride?: string): Promise<ApiClient> {
   const config = loadConfig();
   const auth = resolveAuth(config, apiKeyOverride);
+  // Honoured for SDK-backed commands too, so `--organization` cannot be declared on
+  // a command and then silently ignored.
+  const tenantOrgId = tenantOrgIdOverride ?? config.tenantOrgId;
 
   if (auth.kind === 'none') {
     throw new Error(NO_CREDENTIALS_MESSAGE);
@@ -69,7 +72,7 @@ export async function getClient(apiKeyOverride?: string): Promise<ApiClient> {
 
     return new BitmovinApi({
       apiKey: auth.value,
-      ...(config.tenantOrgId && {tenantOrgId: config.tenantOrgId}),
+      ...(tenantOrgId && {tenantOrgId}),
       headers: {...CLIENT_ID_HEADERS},
     });
   }
@@ -81,7 +84,7 @@ export async function getClient(apiKeyOverride?: string): Promise<ApiClient> {
   return new BitmovinApi({
     // SDK validates apiKey is non-empty; we replace the header below.
     apiKey: 'oauth',
-    ...(config.tenantOrgId && {tenantOrgId: config.tenantOrgId}),
+    ...(tenantOrgId && {tenantOrgId}),
     headers: {
       ...CLIENT_ID_HEADERS,
       'X-Api-Key': '',

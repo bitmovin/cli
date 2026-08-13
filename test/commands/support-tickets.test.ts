@@ -13,10 +13,22 @@ vi.mock('../../src/lib/rest.js', () => ({
 }));
 
 const prompt = {canPrompt: false, answer: false};
-vi.mock('../../src/lib/confirm.js', () => ({
-  canPrompt: () => prompt.canPrompt,
-  confirmAction: async () => prompt.answer,
-}));
+vi.mock('../../src/lib/confirm.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/lib/confirm.js')>();
+  return {
+    // The real yesFlag, so the flag definition stays under test here.
+    ...actual,
+    canPrompt: () => prompt.canPrompt,
+    confirmAction: async () => prompt.answer,
+    // Mirrors the real policy against the fixture; the policy itself is tested
+    // directly in test/lib/confirm.test.ts, which does not mock this module.
+    confirmDestructive: async ({jsonMode, yes}: {jsonMode: boolean; yes: boolean}) => {
+      if (yes) return 'proceed';
+      if (jsonMode || !prompt.canPrompt) return 'unconfirmable';
+      return prompt.answer ? 'proceed' : 'declined';
+    },
+  };
+});
 
 function capture(): {output: () => string; errOutput: () => string; restore: () => void} {
   let out = '';

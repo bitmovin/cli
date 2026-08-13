@@ -2,8 +2,7 @@ import {readFileSync} from 'node:fs';
 import {Args, Flags} from '@oclif/core';
 import chalk from 'chalk';
 import {BaseCommand} from '../../../lib/base-command.js';
-import {canPrompt, confirmAction} from '../../../lib/confirm.js';
-import {organizationFlag, resolveTenantOrgId} from '../../../lib/organizations.js';
+import {confirmDestructive, yesFlag} from '../../../lib/confirm.js';
 import {
   type SupportTicketComment,
   abbreviate,
@@ -25,16 +24,11 @@ export default class SupportTicketsComment extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    organization: organizationFlag,
+    ...BaseCommand.tenantOrgFlag,
     body: Flags.string({description: 'Comment text (plain text is escaped and line breaks preserved)', exclusive: ['body-file']}),
     'body-file': Flags.string({description: 'Read the comment from a file', exclusive: ['body']}),
     html: Flags.boolean({description: 'Treat the comment as HTML and send it as-is', default: false}),
-    yes: Flags.boolean({
-      char: 'y',
-      aliases: ['confirm'],
-      description: 'Skip the confirmation prompt (required for non-interactive use)',
-      default: false,
-    }),
+    yes: yesFlag,
   };
 
   static override examples = [
@@ -45,10 +39,7 @@ export default class SupportTicketsComment extends BaseCommand {
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(SupportTicketsComment);
-    const context = {
-      tenantOrgId: resolveTenantOrgId(flags.organization),
-      apiKey: flags['api-key'] as string | undefined,
-    };
+    const context = await this.requestScope();
 
     const htmlBody = toHtmlBody(this.resolveBody(flags.body, flags['body-file']), flags.html);
     const problem = validateCommentBody(htmlBody);
@@ -76,21 +67,19 @@ export default class SupportTicketsComment extends BaseCommand {
     const jsonMode = await this.isJsonMode();
     process.stderr.write(this.renderPreview(args.id, ticket.subject, ticket.status, htmlBody, latestComment(ticket)));
 
-    if (!flags.yes) {
-      if (jsonMode || !canPrompt()) {
-        this.error(
-          'Adding a ticket comment requires confirmation.\n' +
-          '  Bitmovin support sees the comment immediately and it cannot be withdrawn via the API.\n' +
-          '  Re-run interactively, or pass --yes to confirm non-interactively.',
-          {exit: 2},
-        );
-      }
+    const outcome = await confirmDestructive({jsonMode, yes: flags.yes, question: `Post this comment to ticket ${args.id}?`});
+    if (outcome === 'unconfirmable') {
+      this.error(
+        'Adding a ticket comment requires confirmation.\n' +
+        '  Bitmovin support sees the comment immediately and it cannot be withdrawn via the API.\n' +
+        '  Re-run interactively, or pass --yes to confirm non-interactively.',
+        {exit: 2},
+      );
+    }
 
-      const proceed = await confirmAction(`Post this comment to ticket ${args.id}?`);
-      if (!proceed) {
-        this.log('Aborted. No comment was posted.');
-        return;
-      }
+    if (outcome === 'declined') {
+      this.log('Aborted. No comment was posted.');
+      return;
     }
 
     const result = await addComment(args.id, {htmlBody, updatedStamp: ticket.modifiedAt}, context);

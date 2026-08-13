@@ -1,3 +1,4 @@
+import {Flags} from '@oclif/core';
 import {apiRequest} from './rest.js';
 
 /**
@@ -273,26 +274,53 @@ export function validateSort(sort: string): string | undefined {
   return undefined;
 }
 
-export interface CreateTicketFlags {
+/**
+ * The optional create-ticket fields, declared once.
+ *
+ * The oclif flags, the accepted flag type, and the API payload key all come from
+ * this table. Previously the same ~18 fields were listed three times — flag
+ * definition, TypeScript interface, payload mapping — and the call site cast the
+ * parsed flags, so a field added to two of the three compiled cleanly and then never
+ * reached the API. Add a field here and it is wired end to end.
+ */
+export const CREATE_TICKET_FIELDS = [
+  {flag: 'subject', payload: 'subject', description: 'Ticket subject'},
+  {flag: 'priority', payload: 'priority', description: 'Ticket priority', options: TICKET_PRIORITIES},
+  {flag: 'severity', payload: 'severity', description: 'Ticket severity', options: TICKET_SEVERITIES},
+  {flag: 'platform', payload: 'platform', description: 'Affected platform (e.g. web, android, ios, roku)'},
+  {flag: 'sdk-version', payload: 'sdkVersion', description: 'SDK / player version in use'},
+  {flag: 'encoding-id', payload: 'encodingId', description: 'Affected encoding ID (requires --category encoding)'},
+  {flag: 'license', payload: 'license', description: 'Affected license key (requires --category player or analytics)'},
+  {flag: 'page-url', payload: 'pageUrl', description: 'URL where the issue reproduces (requires --category player or analytics)'},
+  {
+    flag: 'allow-file-access',
+    payload: 'allowFileAccess',
+    description: 'Allow Bitmovin support to access the referenced files (requires --category encoding)',
+    type: 'boolean' as const,
+  },
+  {flag: 'input-url', payload: 'inputUrl', description: 'Input / stream URL involved'},
+  {flag: 'request-type', payload: 'requestType', description: 'Kind of request', values: REQUEST_TYPES},
+  {flag: 'reference-id', payload: 'referenceId', description: 'Your own reference (e.g. internal ticket id)'},
+  {
+    flag: 'reproducible-with-sample-app',
+    payload: 'reproducibleWithSampleApp',
+    description: 'Whether the issue reproduces in the Bitmovin sample app',
+    values: REPRODUCIBLE_WITH_SAMPLE_APP,
+  },
+  {
+    flag: 'reproducible-reliably',
+    payload: 'reproducibleReliably',
+    description: 'Whether the issue reproduces reliably',
+    values: REPRODUCIBLE_RELIABLY,
+  },
+  {flag: 'os-details', payload: 'osDetails', description: 'Operating system details'},
+  {flag: 'device-details', payload: 'deviceDetails', description: 'Device details'},
+  {flag: 'geo-restriction-country', payload: 'geoRestrictionCountry', description: 'Country the issue is restricted to'},
+] as const;
+
+export interface CreateTicketFlags extends Record<string, unknown> {
   body: string;
   category: string;
-  subject?: string;
-  priority?: string;
-  severity?: string;
-  platform?: string;
-  'sdk-version'?: string;
-  'encoding-id'?: string;
-  license?: string;
-  'page-url'?: string;
-  'allow-file-access'?: boolean;
-  'input-url'?: string;
-  'request-type'?: string;
-  'reference-id'?: string;
-  'reproducible-with-sample-app'?: string;
-  'reproducible-reliably'?: string;
-  'os-details'?: string;
-  'device-details'?: string;
-  'geo-restriction-country'?: string;
 }
 
 /**
@@ -309,32 +337,36 @@ export function buildCreateTicketPayload(flags: CreateTicketFlags, tenantOrgId?:
     category: flags.category,
   };
 
-  const optional: Record<string, unknown> = {
-    subject: flags.subject,
-    priority: flags.priority,
-    severity: flags.severity,
-    platform: flags.platform,
-    sdkVersion: flags['sdk-version'],
-    encodingId: flags['encoding-id'],
-    license: flags.license,
-    pageUrl: flags['page-url'],
-    allowFileAccess: flags['allow-file-access'],
-    inputUrl: flags['input-url'],
-    requestType: flags['request-type'] && REQUEST_TYPES[flags['request-type']],
-    referenceId: flags['reference-id'],
-    reproducibleWithSampleApp: flags['reproducible-with-sample-app'] && REPRODUCIBLE_WITH_SAMPLE_APP[flags['reproducible-with-sample-app']],
-    reproducibleReliably: flags['reproducible-reliably'] && REPRODUCIBLE_RELIABLY[flags['reproducible-reliably']],
-    osDetails: flags['os-details'],
-    deviceDetails: flags['device-details'],
-    geoRestrictionCountry: flags['geo-restriction-country'],
-    organizationId: tenantOrgId,
-  };
-
-  for (const [key, value] of Object.entries(optional)) {
-    if (value !== undefined) payload[key] = value;
+  for (const field of CREATE_TICKET_FIELDS) {
+    const value = flags[field.flag];
+    if (value === undefined) continue;
+    // `values` maps the CLI's readable choice onto the API's field value.
+    payload[field.payload] = 'values' in field ? field.values[value as string] : value;
   }
 
+  if (tenantOrgId !== undefined) payload.organizationId = tenantOrgId;
+
   return payload;
+}
+
+/**
+ * oclif flag definitions derived from {@link CREATE_TICKET_FIELDS}, so the flags and
+ * the payload mapping cannot diverge. Spread into a command's `flags`.
+ */
+export function createTicketFlags() {
+  const entries = CREATE_TICKET_FIELDS.map((field) => {
+    const flag =
+      'type' in field && field.type === 'boolean'
+        ? Flags.boolean({description: field.description})
+        : Flags.string({
+            description: field.description,
+            ...('options' in field && {options: [...field.options]}),
+            ...('values' in field && {options: Object.keys(field.values)}),
+          });
+    return [field.flag, flag] as const;
+  });
+
+  return Object.fromEntries(entries);
 }
 
 /**

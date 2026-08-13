@@ -1,6 +1,4 @@
-import {Flags} from '@oclif/core';
 import type {Organization} from '@bitmovin/api-sdk';
-import {loadConfig} from './config.js';
 import type {ApiClient} from './client.js';
 import {apiRequest} from './rest.js';
 
@@ -19,34 +17,6 @@ export interface OrganizationRow extends Record<string, unknown> {
 }
 
 export const ORGANIZATION_COLUMNS = ['id', 'name', 'type', 'parentId', 'active'];
-
-/**
- * `--organization` (alias `--tenant-org`) for commands that can act on a
- * sub-organization. Sent as the `X-Tenant-Org-Id` header; defaults to the
- * organization stored by `bitmovin config set organization`.
- */
-export const organizationFlag = Flags.string({
-  description: 'Organization to act on (sub-org id); sent as X-Tenant-Org-Id. Defaults to the configured organization.',
-  aliases: ['tenant-org'],
-  helpValue: '<org-id>',
-});
-
-/**
- * Flag value wins over the configured organization; undefined means "the API key's
- * own org".
- *
- * A blank flag value is rejected rather than treated as either. `--organization ""`
- * (an unset shell variable in CI, say) would otherwise drop the `X-Tenant-Org-Id`
- * header while still sending `organizationId: ""`, which the API treats as absent —
- * silently widening a write from the intended sub-org to the credential's own org.
- */
-export function resolveTenantOrgId(flagValue?: string): string | undefined {
-  if (flagValue !== undefined && flagValue.trim() === '') {
-    throw new Error('--organization was given an empty value. Pass an organization id, or omit the flag to use the configured organization.');
-  }
-
-  return flagValue ?? loadConfig().tenantOrgId;
-}
 
 /**
  * Lists every organization the credential can see — roots and sub-orgs in one

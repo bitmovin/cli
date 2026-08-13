@@ -6,7 +6,10 @@ vi.mock('../../src/lib/config.js', () => ({
   getConfigPath: () => '/mock/.config/bitmovin/config.json',
 }));
 
-const {toOrganizationRows, resolveTenantOrgId} = await import('../../src/lib/organizations.js');
+const {toOrganizationRows} = await import('../../src/lib/organizations.js');
+// Tenant resolution lives in its own module: it is a request concern, not an
+// account-resource one, and base-command needs it without dragging in this file.
+const {resolveTenantOrgId} = await import('../../src/lib/tenant.js');
 
 describe('toOrganizationRows', () => {
   it('lists each root immediately followed by its sub-organizations', () => {
@@ -54,12 +57,18 @@ describe('toOrganizationRows', () => {
 });
 
 describe('resolveTenantOrgId', () => {
+  // Pure: the configured value is passed in rather than read from the config file,
+  // so the same rule can serve SDK and REST calls (and a future --profile).
   it('prefers the flag over the configured organization', () => {
-    expect(resolveTenantOrgId('flag-org')).toBe('flag-org');
+    expect(resolveTenantOrgId('flag-org', 'config-org')).toBe('flag-org');
   });
 
   it('falls back to the configured organization', () => {
-    expect(resolveTenantOrgId()).toBe('config-org');
+    expect(resolveTenantOrgId(undefined, 'config-org')).toBe('config-org');
+  });
+
+  it('is undefined when neither is set, meaning the credential\'s own organization', () => {
+    expect(resolveTenantOrgId(undefined, undefined)).toBeUndefined();
   });
 
   it('rejects a blank flag value instead of silently widening the scope', () => {
