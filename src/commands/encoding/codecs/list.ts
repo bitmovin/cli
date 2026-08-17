@@ -8,8 +8,7 @@ export default class EncodingCodecList extends BaseCommand {
     ...BaseCommand.baseFlags,
     type: Flags.string({description: 'Filter by type', options: ['video', 'audio']}),
     codec: Flags.string({description: 'Filter by codec (h264, h265, av1, aac, opus, etc.)'}),
-    limit: Flags.integer({description: 'Max results', default: 25}),
-    offset: Flags.integer({description: 'Offset for pagination', default: 0}),
+    ...BaseCommand.paginationFlags(),
   };
 
   async run(): Promise<void> {

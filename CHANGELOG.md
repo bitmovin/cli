@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `bitmovin account organizations list` shows every visible organization with its `type` (`ROOT_ORGANIZATION` / `SUB_ORGANIZATION`), `parentId`, and whether it is the active one, ordering sub-organizations directly under their parent. `--type root|sub` and `--parent <org-id>` narrow the listing.
+- `bitmovin support tickets list | get | create | comment` for Bitmovin support tickets. `--organization <org-id>` (alias `--tenant-org`) scopes any of them to a sub-organization via `X-Tenant-Org-Id`, and `create` always sends a body `organizationId` matching that header because the API rejects a mismatch.
+  - `create` and `comment` are irreversible: both print the exact payload to stderr — always, including under `--json`, so a scripted run still records what was filed and against which organization — state that Bitmovin support engineers will see it and that it cannot be withdrawn via the API, and require an explicit confirmation. `--yes` / `--confirm` skips the prompt and is required for non-interactive use — without a TTY (or in `--json` mode) the commands refuse to send instead of silently filing a ticket.
+  - `comment` reads the ticket's `modifiedAt` and sends it as the API-required `updatedStamp` collision stamp, so callers never see the misleading `1004 … Check your JSON syntax` error that a missing stamp produces. The ticket's newest comment is shown in the confirmation, so the stamp corresponds to the state the user actually saw.
+  - `list` rejects an `--offset` that is not `0` or a multiple of `--limit` (the API silently serves an earlier page otherwise), plus invalid `--search` text, filter values, and `--sort` expressions, before making a request. Filter spacing is normalized, since the API splits on `,` without trimming.
+  - `get` hides attachment download URLs unless `--show-secrets` is passed: the URL alone grants access to the file to anyone holding the link. Ticket subjects and comment bodies are stripped of control characters before printing, so customer-supplied text cannot rewrite the rendered conversation or forge the `(Bitmovin)` agent attribution.
+  - An empty `--organization ""` is rejected rather than silently falling back, which would otherwise widen a write from the intended sub-organization to the credential's own organization.
+  - `--allow-file-access` requires `--category encoding`, and `--body-file` is capped at 65,536 characters with a head-and-tail preview. The API accepts a mismatched category and silently drops the field, so the check has to be local.
+
+### Changed
+
+- `bitmovin config list organizations` now derives sub-organizations from the `parentId` of the flat organization listing instead of calling the per-organization `sub-organizations` endpoint, which reports `1001 An organization with the given id does not exist` for organization ids that the listing returns. The JSON keys are unchanged, but rows are now deduplicated and ordered parent-first, so sub-organizations render under their parent instead of flat at top level.
+- `--organization` (alias `--tenant-org`) is now `BaseCommand.tenantOrgFlag` and is honoured by SDK-backed commands as well as the REST-backed support commands: `getClient()` takes a tenant-organization override and `BaseCommand.getApi()` passes it. Previously the flag could only ever work for the support commands, so adding it to any other command would have parsed fine and been silently ignored.
+- Credential and organization scope for a command is resolved once in `BaseCommand.requestScope()` instead of each command threading `--api-key` and the organization by hand, so a future credential-affecting base flag is wired up in one place. Tenant resolution moved to `lib/tenant.ts` as a pure function.
+- The optional create-ticket fields are declared once in `CREATE_TICKET_FIELDS`, which generates both the oclif flags and the API payload mapping. They were previously listed three times (flags, interface, mapping) behind a cast that hid drift, so a field added to two of the three compiled and never reached the API.
+- The destructive-action policy lives in `confirm.ts` as `confirmDestructive()` plus a shared `yesFlag`, instead of being duplicated in each write command. It returns a distinct `unconfirmable` outcome so "the user declined" and "nobody could be asked" keep different exit codes, and `encoding jobs delete`/`stop` can adopt it without inventing a fourth convention.
+- Fixed `abbreviate(text, n, 0)` printing the entire text while labelling it truncated: `slice(-0)` is `slice(0)`. It was live in the comment confirmation, where a long support reply pushed the "PUBLIC comment" warning off screen — the opposite of what the head-and-tail preview exists for.
+- The ticket-body bound applies to `--body` as well as `--body-file`, and organization listing has a page-count bound so a server that ignores `offset` fails instead of looping.
+- `--sort createdAt:desc` is uppercased before it is sent; validation accepted it case-insensitively while the API silently ignored the direction.
+- `409` now explains that the resource changed since it was read (the case the comment collision stamp exists to catch) instead of `API error: 409`, and network failures and the request timeout are reported in plain language — the timeout deliberately does not promise a retry is safe, since it fires after the request was sent.
+- `config list organizations` no longer nests a sub-organization under an unrelated root when its real parent is not visible to the credential; it is listed at top level and labelled.
+- Terminal sanitization extended to the comment confirmation's ticket subject and to the requester and organization names in `tickets get`.
+- Organizations are paged through in full. The generated SDK's `organizations.list()` accepts no query parameters and so returned only the API's default first page — on a larger account, sub-organizations whose parent sat on a later page were rendered as roots, and `--parent` reported a visible organization as invisible. A short page while the API reports more now fails loudly rather than returning a truncated list.
+- The `403 Access denied` hint now names the organization the failed request was actually scoped to (including one passed via `--organization`) and points at `bitmovin account organizations list`.
+
 ## [0.4.0] - 2026-05-26
 
 ### Added

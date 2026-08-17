@@ -1,5 +1,6 @@
 import Table from 'cli-table3';
 import chalk from 'chalk';
+import {sanitizeForTerminal} from './sanitize.js';
 
 export function isTTY(): boolean {
   return Boolean(process.stdout.isTTY);
@@ -92,18 +93,32 @@ export function colorizeStatus(status: string): string {
   }
 }
 
+/**
+ * Every human-readable cell goes through here, which makes it the boundary where
+ * API-supplied text crosses into the terminal — so this is where escape sequences are
+ * stripped, rather than at each individual print site.
+ *
+ * Wrapping fields by hand at the call site left anything new (an organization name, a
+ * field of a REST endpoint added later) unsafe until someone remembered to do it, with
+ * nothing forcing the choice. Sanitizing here makes rendering safe by default;
+ * commands that build their own strings outside the table still wrap explicitly.
+ *
+ * The CLI's own decoration is unaffected: `colorizeCell` applies chalk to the string
+ * *returned* from here, and `JSON.stringify` already escapes control characters in a
+ * nested object, so only plain scalars need the pass.
+ */
 function formatCellRaw(value: unknown): string {
   if (value === null || value === undefined) return chalk.dim('-');
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+  return sanitizeForTerminal(String(value));
 }
 
 function formatCellPlain(value: unknown): string {
   if (value === null || value === undefined) return '';
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+  return sanitizeForTerminal(String(value));
 }
 
 export function printStatus(status: string): string {

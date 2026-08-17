@@ -78,3 +78,31 @@ describe('getClient with BITMOVIN_API_KEY env var', () => {
     expect(lastConstructorArgs.headers['X-Api-Client-Version']).toBe(pkg.default.version);
   });
 });
+
+describe('getClient tenant organization', () => {
+  beforeEach(() => {
+    lastConstructorArgs = undefined;
+    process.env.BITMOVIN_API_KEY = 'env-var-key';
+  });
+
+  afterEach(() => {
+    delete process.env.BITMOVIN_API_KEY;
+  });
+
+  it('passes an explicit organization to the SDK', async () => {
+    // This is what stops `--organization` from being declared on an SDK-backed
+    // command and then silently ignored: previously getClient only ever used the
+    // configured organization, so the flag could not be honoured at all.
+    const {getClient} = await import('../../src/lib/client.js');
+    await getClient(undefined, 'sub-org-9');
+
+    expect(lastConstructorArgs.tenantOrgId).toBe('sub-org-9');
+  });
+
+  it('omits the organization entirely when neither flag nor config supplies one', async () => {
+    const {getClient} = await import('../../src/lib/client.js');
+    await getClient();
+
+    expect(lastConstructorArgs.tenantOrgId).toBeUndefined();
+  });
+});

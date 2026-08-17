@@ -34,6 +34,46 @@ describe('formatJson', () => {
   });
 });
 
+describe('terminal safety at the render boundary', () => {
+  // Sanitizing here rather than at each print site is what keeps a newly rendered
+  // field (an organization name, a column of a REST endpoint added later) safe
+  // without anyone having to remember to wrap it.
+  it('strips escape sequences from table cells', () => {
+    const rows = [{id: 'root-1', name: 'Acme\u001B[2K spoofed', status: 'FINISHED'}];
+
+    for (const useTable of [true, false]) {
+      const out = formatTable(rows, ['id', 'name', 'status'], useTable);
+      expect(out).not.toContain('\u001B[2K');
+      expect(out).toContain('Acme');
+    }
+  });
+
+  it('strips a carriage return that would overwrite the row', () => {
+    const out = formatTable([{id: 'a', name: 'real\rfake'}], ['id', 'name'], false);
+    expect(out).not.toContain('\r');
+  });
+
+  it('strips escape sequences from key-value output', () => {
+    const out = formatKeyValue({name: 'Acme\u001B[1A spoofed'}, false);
+    expect(out).not.toContain('\u001B[1A');
+  });
+
+  it("keeps the CLI's own colouring of known values", async () => {
+    // The sanitizer runs on the value and chalk is applied to the result, so the
+    // CLI's own escape sequences must survive — sanitizing after decoration would
+    // strip them and render the table colourless.
+    const chalk = (await import('chalk')).default;
+    const previousLevel = chalk.level;
+    chalk.level = 1;
+    try {
+      const out = formatTable([{id: '1', status: 'FINISHED'}], ['id', 'status'], true);
+      expect(out).toContain('\u001B[32m'); // chalk.green
+    } finally {
+      chalk.level = previousLevel;
+    }
+  });
+});
+
 describe('formatTable', () => {
   const items = [
     {id: '1', name: 'Alpha', status: 'FINISHED'},

@@ -54,9 +54,12 @@ const NO_CREDENTIALS_MESSAGE =
   '    bitmovin config set api-key <your-api-key>  # API key from https://dashboard.bitmovin.com/account\n' +
   '  Or set the BITMOVIN_API_KEY environment variable.\n';
 
-export async function getClient(apiKeyOverride?: string): Promise<ApiClient> {
+export async function getClient(apiKeyOverride?: string, tenantOrgIdOverride?: string): Promise<ApiClient> {
   const config = loadConfig();
   const auth = resolveAuth(config, apiKeyOverride);
+  // Honoured for SDK-backed commands too, so `--organization` cannot be declared on
+  // a command and then silently ignored.
+  const tenantOrgId = tenantOrgIdOverride ?? config.tenantOrgId;
 
   if (auth.kind === 'none') {
     throw new Error(NO_CREDENTIALS_MESSAGE);
@@ -69,7 +72,7 @@ export async function getClient(apiKeyOverride?: string): Promise<ApiClient> {
 
     return new BitmovinApi({
       apiKey: auth.value,
-      ...(config.tenantOrgId && {tenantOrgId: config.tenantOrgId}),
+      ...(tenantOrgId && {tenantOrgId}),
       headers: {...CLIENT_ID_HEADERS},
     });
   }
@@ -81,7 +84,7 @@ export async function getClient(apiKeyOverride?: string): Promise<ApiClient> {
   return new BitmovinApi({
     // SDK validates apiKey is non-empty; we replace the header below.
     apiKey: 'oauth',
-    ...(config.tenantOrgId && {tenantOrgId: config.tenantOrgId}),
+    ...(tenantOrgId && {tenantOrgId}),
     headers: {
       ...CLIENT_ID_HEADERS,
       'X-Api-Key': '',
@@ -89,6 +92,30 @@ export async function getClient(apiKeyOverride?: string): Promise<ApiClient> {
     },
     fetch: createBearerFetch(),
   });
+}
+
+/**
+ * Resolves the credential headers a request must carry, using the same
+ * precedence as {@link getClient} (flag > env > OAuth session > config file)
+ * and refreshing an expired OAuth session on the way.
+ *
+ * Only for endpoints the generated SDK does not cover (see `rest.ts`) —
+ * anything the SDK exposes should go through {@link getClient}.
+ */
+export async function getAuthHeaders(apiKeyOverride?: string): Promise<Record<string, string>> {
+  const config = loadConfig();
+  const auth = resolveAuth(config, apiKeyOverride);
+
+  if (auth.kind === 'none' || (auth.kind === 'api-key' && !auth.value)) {
+    throw new Error(NO_CREDENTIALS_MESSAGE);
+  }
+
+  if (auth.kind === 'api-key') {
+    return {...CLIENT_ID_HEADERS, 'X-Api-Key': auth.value};
+  }
+
+  const session = await ensureFreshSession(auth.session);
+  return {...CLIENT_ID_HEADERS, Authorization: `Bearer ${session.accessToken}`};
 }
 
 async function ensureFreshSession(session: OAuthSession): Promise<OAuthSession> {
