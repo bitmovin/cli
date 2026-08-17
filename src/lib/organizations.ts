@@ -117,8 +117,14 @@ export function toOrganizationRows(orgs: Organization[], activeOrgId?: string): 
 
   for (const root of roots.sort(byLabel)) emit(root);
   // Anything unreachable from a root (only possible if the API ever reports a
-  // parentId cycle) is still listed rather than silently dropped.
-  for (const org of withId.sort(byLabel)) emit(org);
+  // parentId cycle) is still listed rather than silently dropped. Guarded because
+  // normally every org has already been emitted: without it this walked — and
+  // re-sorted — the whole list on every call to do nothing. Cycle members come out
+  // in listing order; their relative order is not worth a sort.
+  if (emitted.size < withId.length) {
+    for (const org of withId) emit(org);
+  }
+
   return rows;
 }
 

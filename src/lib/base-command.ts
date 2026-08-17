@@ -33,6 +33,11 @@ export abstract class BaseCommand extends Command {
    * sub-organization. Spread into a command's flags alongside {@link baseFlags};
    * {@link requestScope} then applies it to SDK and REST calls alike, so declaring
    * it can never leave it silently ignored.
+   *
+   * Only spread it into a command whose request is actually scoped by it. A command
+   * that cannot pass the organization on (because its endpoint ignores the header,
+   * say) must leave it out: the flag also rejects an empty value, so an unused
+   * `--organization "$UNSET_VAR"` would abort the command over a no-op.
    */
   static tenantOrgFlag = {
     organization: Flags.string({
@@ -42,9 +47,23 @@ export abstract class BaseCommand extends Command {
     }),
   };
 
+  /**
+   * `--limit` / `--offset` for list commands, declared once so the defaults and
+   * wording cannot drift between them. `notes` appends an API-specific constraint —
+   * the support-ticket API, for instance, caps the page size and rejects an offset
+   * that is not page-aligned.
+   */
+  static paginationFlags(notes: {limit?: string; offset?: string} = {}) {
+    return {
+      limit: Flags.integer({description: `Max results${notes.limit ? ` ${notes.limit}` : ''}`, default: 25}),
+      offset: Flags.integer({description: `Offset for pagination${notes.offset ? `; ${notes.offset}` : ''}`, default: 0}),
+    };
+  }
+
   private _parsedFlags?: Record<string, unknown>;
   private _api?: ApiClient;
   private _jsonMode?: {enabled: boolean; fields?: string[]};
+  private _scope?: {apiKey?: string; tenantOrgId?: string};
 
   /**
    * Status/info messages. Goes to stderr in JSON mode so stdout stays clean.
@@ -77,9 +96,13 @@ export abstract class BaseCommand extends Command {
         case 403: {
           lines.push(chalk.red('Access denied.'));
           lines.push('');
-          // A request scoped to an organization via --organization reports it on
-          // the error, so the message names that org rather than the configured one.
-          const orgId = err.tenantOrgId ?? config.tenantOrgId;
+          // Name the organization the failed request was scoped to, not the
+          // configured one. `tenantOrgId` on the error is the most precise source
+          // (BitmovinRestError carries it), but the SDK's BitmovinError never does —
+          // so fall back to the scope this invocation resolved, which is what any
+          // SDK command with --organization was sent with. Only if neither is known
+          // does the configured organization stand in.
+          const orgId = err.tenantOrgId ?? this._scope?.tenantOrgId ?? config.tenantOrgId;
           if (orgId) {
             lines.push(`  Organization: ${orgId}`);
             lines.push('  Your credentials have no access grant for this organization, or it cannot access this resource.');
@@ -193,10 +216,13 @@ export abstract class BaseCommand extends Command {
    */
   protected async requestScope(): Promise<{apiKey?: string; tenantOrgId?: string}> {
     const flags = await this.parseFlags();
-    return {
+    // Remembered so {@link catch} can name the organization the request was actually
+    // scoped to, whatever error type surfaced — see the 403 branch.
+    this._scope ??= {
       apiKey: flags['api-key'] as string | undefined,
       tenantOrgId: resolveTenantOrgId(flags.organization as string | undefined, loadConfig().tenantOrgId),
     };
+    return this._scope;
   }
 
   protected async getApi(): Promise<ApiClient> {
@@ -268,6 +294,30 @@ export abstract class BaseCommand extends Command {
 }
 
 /**
+ * DNS, connection and TLS failures, as undici reports them on `err.cause.code`.
+ *
+ * Matching the code rather than the message is deliberate: this classifier runs in
+ * `catch` for *every* command, and a free-text test for "network" or "socket" also
+ * swallowed genuine programming `TypeError`s whose message happened to contain those
+ * words — reporting a real bug as "check your VPN" and dropping its stack.
+ */
+const TRANSPORT_CAUSE_CODES = new Set([
+  'EAI_AGAIN',
+  'ECONNABORTED',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EHOSTUNREACH',
+  'ENETDOWN',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EPIPE',
+  'EPROTO',
+  'ETIMEDOUT',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_SOCKET',
+]);
+
+/**
  * Recognises a transport-level failure (no HTTP response, so no `httpStatusCode`)
  * and describes it in terms the user can act on.
  *
@@ -288,8 +338,17 @@ function describeTransportFailure(err: Error): {summary: string; detail: string[
     };
   }
 
-  // undici surfaces DNS/TLS/connection failures as a TypeError with a cause.
-  if (err instanceof TypeError && /fetch failed|network|socket|ENOTFOUND|ECONN/i.test(`${err.message} ${String((err as {cause?: unknown}).cause ?? '')}`)) {
+  // undici surfaces DNS/TLS/connection failures as `TypeError: fetch failed` with
+  // the real reason on `cause`. Either signal on its own is enough: the wrapper is
+  // exact and unambiguous, and a cause code from the set above identifies a
+  // transport failure however it was wrapped.
+  const cause = (err as {cause?: unknown}).cause;
+  const causeCode = typeof cause === 'object' && cause !== null ? (cause as {code?: unknown}).code : undefined;
+  const isTransport =
+    (err instanceof TypeError && err.message === 'fetch failed') ||
+    (typeof causeCode === 'string' && TRANSPORT_CAUSE_CODES.has(causeCode));
+
+  if (isTransport) {
     return {
       summary: 'Could not reach the Bitmovin API.',
       detail: [

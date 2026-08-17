@@ -1,4 +1,3 @@
-import {readFileSync} from 'node:fs';
 import {Flags} from '@oclif/core';
 import chalk from 'chalk';
 import {BaseCommand} from '../../../lib/base-command.js';
@@ -10,6 +9,7 @@ import {
   buildCreateTicketPayload,
   createTicket,
   createTicketFlags,
+  resolveBodyInput,
   validateCreateTicketPayload,
 } from '../../../lib/support-tickets.js';
 
@@ -39,8 +39,15 @@ export default class SupportTicketsCreate extends BaseCommand {
     const {flags} = await this.parse(SupportTicketsCreate);
     const scope = await this.requestScope();
 
-    const body = this.resolveBody(flags.body, flags['body-file']);
-    const payload = buildCreateTicketPayload({...flags, body}, scope.tenantOrgId);
+    const resolved = resolveBodyInput({
+      body: flags.body,
+      bodyFile: flags['body-file'],
+      what: 'ticket body',
+      maxLength: MAX_BODY_LENGTH,
+    });
+    if ('problem' in resolved) this.error(resolved.problem, {exit: 2});
+
+    const payload = buildCreateTicketPayload({...flags, body: resolved.text}, scope.tenantOrgId);
 
     const problem = validateCreateTicketPayload(payload);
     if (problem) this.error(problem, {exit: 2});
@@ -70,43 +77,6 @@ export default class SupportTicketsCreate extends BaseCommand {
     const result = await createTicket(payload, scope);
     this.log(`Support ticket created: ${result.id ?? '(no id returned)'}`);
     await this.outputData(result);
-  }
-
-  private resolveBody(body?: string, bodyFile?: string): string {
-    // The bound applies to --body too: the reason for it (keeping the confirmation
-    // warning on screen, and not inlining a huge blob into a ticket that cannot be
-    // withdrawn) is identical for `--body "$(cat big.log)"`.
-    if (body !== undefined) return this.boundBody(body, '--body');
-
-    if (bodyFile === undefined) {
-      this.error('A ticket body is required. Pass --body "<text>" or --body-file <path>.', {exit: 2});
-    }
-
-    let contents: string;
-    try {
-      contents = readFileSync(bodyFile, 'utf-8');
-    } catch (err) {
-      this.error(`Could not read --body-file ${bodyFile}: ${err instanceof Error ? err.message : String(err)}`, {exit: 2});
-    }
-
-    return this.boundBody(contents, `--body-file ${bodyFile}`);
-  }
-
-  /**
-   * Bounded because the text is transmitted into a ticket that cannot be withdrawn
-   * via the API, and because an enormous body scrolls the confirmation warning off
-   * screen — degrading the safety check exactly when it matters most.
-   */
-  private boundBody(text: string, source: string): string {
-    if (text.length > MAX_BODY_LENGTH) {
-      this.error(
-        `${source} is ${text.length} characters; the maximum is ${MAX_BODY_LENGTH}.\n` +
-        '  Attach large files to the ticket in the dashboard instead of inlining them.',
-        {exit: 2},
-      );
-    }
-
-    return text;
   }
 
   private renderPreview(payload: Record<string, unknown>, tenantOrgId?: string, jsonMode = false): string {

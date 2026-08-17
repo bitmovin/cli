@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {Flags} from '@oclif/core';
 import type {BooleanFlag, OptionFlag} from '@oclif/core/interfaces';
 import {apiRequest} from './rest.js';
@@ -61,10 +62,49 @@ export function abbreviate(text: string, headChars = 600, tailChars = 200): stri
  * reader relies on.
  */
 export function sanitizeForTerminal(text: string): string {
-  // C0 controls except tab/newline/carriage-return, plus DEL and the C1 range
-  // (which is where ANSI/OSC escape sequences live).
-  /* eslint-disable-next-line no-control-regex -- stripping control characters is the point */
-  return text.replaceAll(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+  // CRLF is normalized first so a Windows-authored comment keeps its line breaks, and
+  // every remaining carriage return is then stripped along with the other controls.
+  // A lone \r returns the cursor to column 0, so "real text\r        misleading text"
+  // overwrites what was already printed — the same rewriting this function exists to
+  // prevent. Only tab and newline are kept.
+  return text
+    .replaceAll('\r\n', '\n')
+    /* eslint-disable-next-line no-control-regex -- stripping control characters is the point */
+    .replaceAll(/[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g, '');
+}
+
+/** Stands in for an attachment URL that was withheld. See {@link redactAttachmentUrls}. */
+export const HIDDEN_ATTACHMENT_URL = '[url hidden — pass --show-secrets]';
+
+/**
+ * Replaces attachment download URLs with {@link HIDDEN_ATTACHMENT_URL}.
+ *
+ * The URL is a capability: the API documents the file as downloadable by anyone
+ * holding the link, so it is masked like any other secret unless `--show-secrets` is
+ * passed, matching `account info`. Applied to the payload before output rather than
+ * while rendering the human view — `--json` (which the `--jq` example steers users
+ * towards) would otherwise dump every capability URL into a CI log or a shared
+ * terminal session.
+ *
+ * The key is kept with a placeholder rather than deleted, so a JSON consumer can
+ * still see that the attachment has a URL to ask for.
+ */
+export function redactAttachmentUrls(detail: SupportTicketDetail): SupportTicketDetail {
+  if (!detail.comments) return detail;
+
+  return {
+    ...detail,
+    comments: detail.comments.map((comment) =>
+      comment.attachments === undefined
+        ? comment
+        : {
+            ...comment,
+            attachments: comment.attachments.map((attachment) =>
+              attachment.url === undefined ? attachment : {...attachment, url: HIDDEN_ATTACHMENT_URL},
+            ),
+          },
+    ),
+  };
 }
 
 /** Newest comment on a ticket, by createdAt, for the comment preview. */
@@ -253,13 +293,20 @@ export function validateEnumFilter(flagName: string, value: string, allowed: rea
 }
 
 /**
- * Normalizes a comma-separated filter to what the API can parse.
+ * Splits a comma-separated flag value into its trimmed, non-empty parts.
  *
- * Validation above trims each part, but the API splits on `,` and uppercases
- * *without* trimming — so `--status "open, pending"` would pass validation here and
- * still come back as HTTP 400, exactly the round trip the local check exists to
- * avoid. Send what we validated.
+ * Shared by the sort validator and normalizer so the two cannot disagree about what
+ * a part is: `--sort "createdAt:DESC, modifiedAt:ASC"` was rejected as
+ * `' modifiedAt:ASC'` by a validator that did not trim, even though normalization
+ * would have accepted and sent it.
  */
+function splitParts(value: string): string[] {
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
 /**
  * Normalizes a sort expression to what the API matches on.
  *
@@ -268,27 +315,28 @@ export function validateEnumFilter(flagName: string, value: string, allowed: rea
  * direction, the same class of bug `normalizeEnumFilter` exists to prevent.
  */
 export function normalizeSort(sort: string): string {
-  return sort
-    .split(',')
-    .filter(Boolean)
+  return splitParts(sort)
     .map((part) => {
-      const [field, direction] = part.trim().split(':');
+      const [field, direction] = part.split(':');
       return direction === undefined ? field : `${field}:${direction.toUpperCase()}`;
     })
     .join(',');
 }
 
+/**
+ * Normalizes a comma-separated filter to what the API can parse.
+ *
+ * Validation above trims each part, but the API splits on `,` and uppercases
+ * *without* trimming — so `--status "open, pending"` would pass validation here and
+ * still come back as HTTP 400, exactly the round trip the local check exists to
+ * avoid. Send what we validated.
+ */
 export function normalizeEnumFilter(value: string): string {
-  return value
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join(',');
+  return splitParts(value).join(',');
 }
 
 export function validateSort(sort: string): string | undefined {
-  const parts = sort.split(',').filter(Boolean);
-  for (const part of parts) {
+  for (const part of splitParts(sort)) {
     const [field, direction, ...rest] = part.split(':');
     if (rest.length > 0 || !TICKET_SORT_FIELDS.includes(field as (typeof TICKET_SORT_FIELDS)[number])) {
       return `--sort must be <field>[:ASC|:DESC] with field one of ${TICKET_SORT_FIELDS.join(', ')}; got '${part}'.`;
@@ -463,6 +511,59 @@ export function toHtmlBody(text: string, isHtml: boolean): string {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll(/\r\n|\r|\n/g, '<br>\n');
+}
+
+/**
+ * Resolves the text a write command sends, from `--body` or `--body-file`.
+ *
+ * Shared by `tickets create` and `tickets comment`: both accept the same flag pair
+ * and both need the same bound, and while this lived in each command the two had
+ * already drifted — only `create` applied the length cap, so a huge `--body-file`
+ * reached the comment confirmation and scrolled the warning off screen.
+ *
+ * Bounded because the text goes into a ticket that cannot be withdrawn via the API,
+ * and because an enormous body degrades the confirmation exactly when it matters
+ * most. Returns the problem as a message instead of throwing, so the caller keeps
+ * control of the oclif exit code.
+ */
+export function resolveBodyInput(options: {
+  body?: string;
+  bodyFile?: string;
+  /** Named in the "is required" message, e.g. `ticket body`. */
+  what: string;
+  maxLength: number;
+}): {text: string} | {problem: string} {
+  const {body, bodyFile, what, maxLength} = options;
+  let text: string;
+  let source: string;
+
+  if (body === undefined) {
+    if (bodyFile === undefined) {
+      return {problem: `A ${what} is required. Pass --body "<text>" or --body-file <path>.`};
+    }
+
+    try {
+      text = readFileSync(bodyFile, 'utf-8');
+    } catch (err) {
+      return {problem: `Could not read --body-file ${bodyFile}: ${err instanceof Error ? err.message : String(err)}`};
+    }
+
+    source = `--body-file ${bodyFile}`;
+  } else {
+    // The bound applies to --body too: `--body "$(cat big.log)"` is the same problem.
+    text = body;
+    source = '--body';
+  }
+
+  if (text.length > maxLength) {
+    return {
+      problem:
+        `${source} is ${text.length} characters; the maximum is ${maxLength}.\n` +
+        '  Attach large files to the ticket in the dashboard instead of inlining them.',
+    };
+  }
+
+  return {text};
 }
 
 export function validateCommentBody(htmlBody: string): string | undefined {

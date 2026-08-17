@@ -7,8 +7,7 @@ export default class EncodingInputList extends BaseCommand {
   static override flags = {
     ...BaseCommand.baseFlags,
     type: Flags.string({description: 'Filter by type (s3, gcs, http, https, azure)'}),
-    limit: Flags.integer({description: 'Max results', default: 25}),
-    offset: Flags.integer({description: 'Offset for pagination', default: 0}),
+    ...BaseCommand.paginationFlags(),
   };
 
   async run(): Promise<void> {

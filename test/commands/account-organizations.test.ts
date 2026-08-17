@@ -132,6 +132,15 @@ describe('account organizations list', () => {
     await expect(Cmd.run(['--parent', 'nope', '--json'])).rejects.toThrow(/not visible to these credentials/);
   });
 
+  it('does not accept --organization, which this endpoint cannot honour', async () => {
+    // /account/organizations lists what the credential can see and is not scoped by
+    // X-Tenant-Org-Id. Declaring the flag anyway made it a silent no-op — and worse,
+    // `--organization "$UNSET_VAR"` aborted a read-only listing on the empty-value
+    // check. --parent is how you narrow to one organization's sub-orgs.
+    const {default: Cmd} = await import('../../src/commands/account/organizations/list.js');
+    await expect(Cmd.run(['--organization', 'sub-2', '--json'])).rejects.toThrow(/--organization/);
+  });
+
   it('renders the id, type and parentId in table output', async () => {
     const cap = captureStdout();
     const {default: Cmd} = await import('../../src/commands/account/organizations/list.js');

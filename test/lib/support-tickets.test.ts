@@ -54,6 +54,14 @@ describe('validateSort', () => {
     expect(validateSort('subject:ASC')).toContain('--sort must be');
     expect(validateSort('createdAt:SIDEWAYS')).toContain('ASC or DESC');
   });
+
+  it('accepts the spacing normalizeSort accepts, so a spaced sort is not spuriously rejected', () => {
+    // The validator used to split without trimming while the normalizer trimmed, so
+    // `--sort "createdAt:DESC, modifiedAt:ASC"` failed on ' modifiedAt:ASC' even
+    // though the value that would have been sent was perfectly valid.
+    expect(validateSort('createdAt:DESC, modifiedAt:ASC')).toBeUndefined();
+    expect(validateSort(' createdAt:desc ')).toBeUndefined();
+  });
 });
 
 describe('validateEnumFilter', () => {
@@ -265,6 +273,83 @@ describe('sanitizeForTerminal', () => {
   it('keeps tabs and newlines so real comment text survives', async () => {
     const {sanitizeForTerminal} = await import('../../src/lib/support-tickets.js');
     expect(sanitizeForTerminal('line1\nline2\tend')).toBe('line1\nline2\tend');
+  });
+
+  it('drops a lone carriage return, which would otherwise overwrite the printed line', async () => {
+    const {sanitizeForTerminal} = await import('../../src/lib/support-tickets.js');
+    // \r returns the cursor to column 0, so the second half would overwrite the
+    // first on screen — the same rewriting the escape stripping exists to prevent.
+    expect(sanitizeForTerminal('real text\r        misleading text')).toBe('real text        misleading text');
+  });
+
+  it('keeps CRLF line breaks as newlines rather than eating them', async () => {
+    const {sanitizeForTerminal} = await import('../../src/lib/support-tickets.js');
+    expect(sanitizeForTerminal('line1\r\nline2')).toBe('line1\nline2');
+  });
+});
+
+describe('redactAttachmentUrls', () => {
+  it('replaces every attachment URL with the placeholder', async () => {
+    const {redactAttachmentUrls, HIDDEN_ATTACHMENT_URL} = await import('../../src/lib/support-tickets.js');
+    const detail = {
+      caseId: 1,
+      comments: [
+        {id: 1, attachments: [{id: 7, fileName: 'crash.log', url: 'https://files.example.com/crash.log?token=SECRET'}]},
+        {id: 2, body: 'no attachments'},
+      ],
+    };
+
+    const redacted = redactAttachmentUrls(detail);
+
+    expect(JSON.stringify(redacted)).not.toContain('token=SECRET');
+    // Kept as a placeholder, not deleted: a JSON consumer can still see there is a
+    // URL to ask for with --show-secrets.
+    expect(redacted.comments?.[0].attachments?.[0]).toMatchObject({fileName: 'crash.log', url: HIDDEN_ATTACHMENT_URL});
+    expect(redacted.comments?.[1]).toEqual({id: 2, body: 'no attachments'});
+    // The caller keeps the original to print when --show-secrets is passed.
+    expect(detail.comments[0].attachments[0].url).toContain('token=SECRET');
+  });
+
+  it('leaves an attachment without a URL untouched', async () => {
+    const {redactAttachmentUrls} = await import('../../src/lib/support-tickets.js');
+    const redacted = redactAttachmentUrls({comments: [{id: 1, attachments: [{id: 7, fileName: 'crash.log'}]}]});
+    expect(redacted.comments?.[0].attachments?.[0]).toEqual({id: 7, fileName: 'crash.log'});
+  });
+});
+
+describe('resolveBodyInput', () => {
+  it('reads --body-file and applies the same bound as --body', async () => {
+    // Shared by create and comment: while each command had its own copy, only create
+    // bounded the file path, so a huge --body-file reached the comment confirmation.
+    const {mkdtempSync, writeFileSync} = await import('node:fs');
+    const {tmpdir} = await import('node:os');
+    const {join} = await import('node:path');
+    const {resolveBodyInput} = await import('../../src/lib/support-tickets.js');
+
+    const dir = mkdtempSync(join(tmpdir(), 'bitmovin-cli-body-'));
+    const file = join(dir, 'body.md');
+    writeFileSync(file, 'from file');
+
+    expect(resolveBodyInput({bodyFile: file, what: 'comment body', maxLength: 100})).toEqual({text: 'from file'});
+
+    const tooLong = resolveBodyInput({bodyFile: file, what: 'comment body', maxLength: 3});
+    expect('problem' in tooLong && tooLong.problem).toContain(`--body-file ${file} is 9 characters`);
+  });
+
+  it('names the missing input and the unreadable file', async () => {
+    const {resolveBodyInput} = await import('../../src/lib/support-tickets.js');
+
+    const missing = resolveBodyInput({what: 'ticket body', maxLength: 100});
+    expect('problem' in missing && missing.problem).toContain('A ticket body is required');
+
+    const unreadable = resolveBodyInput({bodyFile: '/nope/does-not-exist.md', what: 'ticket body', maxLength: 100});
+    expect('problem' in unreadable && unreadable.problem).toContain('Could not read --body-file');
+  });
+
+  it('bounds --body too, so a shell-inlined log cannot scroll the confirmation away', async () => {
+    const {resolveBodyInput} = await import('../../src/lib/support-tickets.js');
+    const problem = resolveBodyInput({body: 'x'.repeat(20), what: 'ticket body', maxLength: 10});
+    expect('problem' in problem && problem.problem).toContain('--body is 20 characters');
   });
 });
 

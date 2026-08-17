@@ -6,8 +6,7 @@ export default class EncodingJobList extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    limit: Flags.integer({description: 'Max results', default: 25}),
-    offset: Flags.integer({description: 'Offset for pagination', default: 0}),
+    ...BaseCommand.paginationFlags(),
     status: Flags.string({description: 'Filter by status (CREATED, QUEUED, RUNNING, FINISHED, ERROR)'}),
   };
 

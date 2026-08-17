@@ -1,14 +1,15 @@
-import {readFileSync} from 'node:fs';
 import {Args, Flags} from '@oclif/core';
 import chalk from 'chalk';
 import {BaseCommand} from '../../../lib/base-command.js';
 import {confirmDestructive, yesFlag} from '../../../lib/confirm.js';
 import {
+  MAX_COMMENT_LENGTH,
   type SupportTicketComment,
   abbreviate,
   addComment,
   getTicket,
   latestComment,
+  resolveBodyInput,
   sanitizeForTerminal,
   toHtmlBody,
   validateCommentBody,
@@ -41,7 +42,15 @@ export default class SupportTicketsComment extends BaseCommand {
     const {args, flags} = await this.parse(SupportTicketsComment);
     const context = await this.requestScope();
 
-    const htmlBody = toHtmlBody(this.resolveBody(flags.body, flags['body-file']), flags.html);
+    const resolved = resolveBodyInput({
+      body: flags.body,
+      bodyFile: flags['body-file'],
+      what: 'comment body',
+      maxLength: MAX_COMMENT_LENGTH,
+    });
+    if ('problem' in resolved) this.error(resolved.problem, {exit: 2});
+
+    const htmlBody = toHtmlBody(resolved.text, flags.html);
     const problem = validateCommentBody(htmlBody);
     if (problem) this.error(problem, {exit: 2});
 
@@ -85,20 +94,6 @@ export default class SupportTicketsComment extends BaseCommand {
     const result = await addComment(args.id, {htmlBody, updatedStamp: ticket.modifiedAt}, context);
     this.log(`Comment added to ticket ${result.caseId ?? args.id}.`);
     await this.outputData(result);
-  }
-
-  private resolveBody(body?: string, bodyFile?: string): string {
-    if (body !== undefined) return body;
-
-    if (bodyFile === undefined) {
-      this.error('A comment body is required. Pass --body "<text>" or --body-file <path>.', {exit: 2});
-    }
-
-    try {
-      return readFileSync(bodyFile, 'utf-8');
-    } catch (err) {
-      this.error(`Could not read --body-file ${bodyFile}: ${err instanceof Error ? err.message : String(err)}`, {exit: 2});
-    }
   }
 
   private renderPreview(

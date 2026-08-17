@@ -194,6 +194,10 @@ bitmovin account organizations list --json --jq '.[] | select(.parentId != null)
 your credentials can see — an unknown id exits with an error rather than an empty
 list.
 
+This command takes no `--organization`: the listing is scoped by the credentials
+themselves, not by `X-Tenant-Org-Id`, so the flag would have no effect. Use
+`--parent <org-id>` to narrow it to one organization's sub-organizations.
+
 The hierarchy is derived from the `parentId` of the flat organization listing, which
 the CLI pages through in full. The API's per-organization `sub-organizations`
 endpoint is deliberately not used: it answers `1001 An organization with the given
@@ -244,7 +248,7 @@ characters.
 | `--html` | `comment` | Send the comment as HTML. By default plain text is escaped and its line breaks are preserved. |
 | `--yes` / `-y` | `create`, `comment` | Confirm non-interactively. |
 | `--limit` / `--offset` | `list` | Page size (1–100, default 25) and offset (default 0). The offset must be `0` or a multiple of `--limit`; other values make the API silently return an earlier page, so the CLI rejects them. |
-| `--show-secrets` | `get` | Print attachment download URLs. They are hidden by default: the URL alone grants access to the file to anyone holding the link. |
+| `--show-secrets` | `get` | Print attachment download URLs. They are hidden by default — in `--json` output too, where the `url` field carries a placeholder instead — because the URL alone grants access to the file to anyone holding the link. |
 | `--status`, `--category`, `--priority`, `--severity` | `list` | Comma-separated filters. Status: `new, open, pending, hold, solved, closed, deleted`. Category: `encoding, player, analytics, other`. Priority: `blocker, high, medium, low`. Severity: `high, medium, low, minor`. |
 | `--search <text>` | `list` | Full-text search, max 100 characters, letters/digits/spaces only (the API rejects punctuation). |
 | `--sort <expr>` | `list` | `createdAt` or `modifiedAt`, optionally `:ASC` / `:DESC`. |

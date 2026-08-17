@@ -1,4 +1,4 @@
-import {Args, Flags} from '@oclif/core';
+import {Args} from '@oclif/core';
 import {BaseCommand} from '../../../lib/base-command.js';
 import {resolvePlayerLicense} from '../../../lib/resolve-license.js';
 
@@ -11,8 +11,7 @@ export default class PlayerDomainList extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    limit: Flags.integer({description: 'Max results', default: 25}),
-    offset: Flags.integer({description: 'Offset for pagination', default: 0}),
+    ...BaseCommand.paginationFlags(),
   };
 
   async run(): Promise<void> {

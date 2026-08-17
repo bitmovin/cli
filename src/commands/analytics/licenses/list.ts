@@ -1,4 +1,3 @@
-import {Flags} from '@oclif/core';
 import {BaseCommand} from '../../../lib/base-command.js';
 
 export default class AnalyticsLicenseList extends BaseCommand {
@@ -6,8 +5,7 @@ export default class AnalyticsLicenseList extends BaseCommand {
 
   static override flags = {
     ...BaseCommand.baseFlags,
-    limit: Flags.integer({description: 'Max results', default: 25}),
-    offset: Flags.integer({description: 'Offset for pagination', default: 0}),
+    ...BaseCommand.paginationFlags(),
   };
 
   async run(): Promise<void> {

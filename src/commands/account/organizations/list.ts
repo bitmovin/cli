@@ -14,9 +14,13 @@ export default class AccountOrganizationsList extends BaseCommand {
   static override description =
     'List organizations visible to your credentials. Sub-organizations are listed under their parent, with type and parentId shown.';
 
+  // Deliberately no `tenantOrgFlag`: `/account/organizations` lists what the
+  // credential can see and is not scoped by X-Tenant-Org-Id, so `--organization`
+  // would be declared and then ignored — and, because the flag rejects an empty
+  // value, `--organization "$UNSET_VAR"` would abort a read-only listing over a
+  // no-op. Sub-organizations are selected with `--parent` instead.
   static override flags = {
     ...BaseCommand.baseFlags,
-    ...BaseCommand.tenantOrgFlag,
     parent: Flags.string({
       description: 'Show only the sub-organizations of this organization',
       helpValue: '<org-id>',
@@ -67,7 +71,8 @@ export default class AccountOrganizationsList extends BaseCommand {
     if (!(await this.isJsonMode()) && !flags.quiet && selected.length > 0) {
       this.log('');
       this.log(chalk.dim('Set the default organization: bitmovin config set organization <id>'));
-      this.log(chalk.dim('Target one for a single command:  --organization <id>'));
+      // Named with a command that actually accepts the flag — this one does not.
+      this.log(chalk.dim('Target one for a single command:  bitmovin support tickets list --organization <id>'));
     }
   }
 }

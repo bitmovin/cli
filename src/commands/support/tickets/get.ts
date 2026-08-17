@@ -1,7 +1,12 @@
 import {Args, Flags} from '@oclif/core';
 import chalk from 'chalk';
 import {BaseCommand} from '../../../lib/base-command.js';
-import {getTicket, sanitizeForTerminal, type SupportTicketComment} from '../../../lib/support-tickets.js';
+import {
+  type SupportTicketComment,
+  getTicket,
+  redactAttachmentUrls,
+  sanitizeForTerminal,
+} from '../../../lib/support-tickets.js';
 
 export default class SupportTicketsGet extends BaseCommand {
   static override description = 'Show a support ticket including its public comment conversation';
@@ -27,7 +32,12 @@ export default class SupportTicketsGet extends BaseCommand {
 
   async run(): Promise<void> {
     const {args, flags} = await this.parse(SupportTicketsGet);
-    const detail = await getTicket(args.id, await this.requestScope());
+    const fetched = await getTicket(args.id, await this.requestScope());
+
+    // Redacted once, before either output path: the attachment URL is a capability,
+    // and masking it only while rendering the human view left `--json` (and the --jq
+    // example) handing every download link to whatever reads the output.
+    const detail = flags['show-secrets'] ? fetched : redactAttachmentUrls(fetched);
 
     if (await this.isJsonMode()) {
       await this.outputData(detail);
@@ -49,12 +59,12 @@ export default class SupportTicketsGet extends BaseCommand {
     });
 
     for (const comment of detail.comments ?? []) {
-      process.stdout.write('\n' + renderComment(comment, Boolean(flags['show-secrets'])) + '\n');
+      process.stdout.write('\n' + renderComment(comment) + '\n');
     }
   }
 }
 
-function renderComment(comment: SupportTicketComment, showSecrets: boolean): string {
+function renderComment(comment: SupportTicketComment): string {
   // Author and body are sanitized: anyone who can land a public comment controls
   // this text, and raw escape sequences could otherwise forge the "(Bitmovin)"
   // attribution below or rewrite the rendered conversation.
@@ -64,11 +74,11 @@ function renderComment(comment: SupportTicketComment, showSecrets: boolean): str
   const lines = [header, sanitizeForTerminal(comment.body ?? '')];
 
   for (const attachment of comment.attachments ?? []) {
-    // The attachment URL is a capability: the API documents it as downloadable by
-    // anyone holding the link, so it is masked like any other secret unless asked
-    // for, matching `account info`.
-    const location = showSecrets ? (attachment.url ?? '') : chalk.dim('[url hidden — pass --show-secrets]');
-    lines.push(chalk.dim(`  attachment: ${attachment.fileName ?? attachment.id} `) + location);
+    // The URL is either the real one (--show-secrets) or the placeholder the
+    // redaction left behind; the file name is chosen by whoever uploaded it, so it
+    // is sanitized like the rest of the conversation.
+    const name = sanitizeForTerminal(String(attachment.fileName ?? attachment.id ?? ''));
+    lines.push(chalk.dim(`  attachment: ${name} `) + (attachment.url ?? ''));
   }
 
   return lines.join('\n');

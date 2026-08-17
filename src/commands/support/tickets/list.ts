@@ -24,8 +24,7 @@ export default class SupportTicketsList extends BaseCommand {
   static override flags = {
     ...BaseCommand.baseFlags,
     ...BaseCommand.tenantOrgFlag,
-    limit: Flags.integer({description: 'Max results (1-100)', default: 25}),
-    offset: Flags.integer({description: 'Offset for pagination; must be 0 or a multiple of --limit', default: 0}),
+    ...BaseCommand.paginationFlags({limit: '(1-100)', offset: 'must be 0 or a multiple of --limit'}),
     status: Flags.string({description: `Filter by status, comma-separated (${TICKET_STATUSES.join(', ')})`}),
     category: Flags.string({description: `Filter by category, comma-separated (${TICKET_CATEGORIES.join(', ')})`}),
     priority: Flags.string({description: `Filter by priority, comma-separated (${TICKET_PRIORITIES.join(', ')})`}),

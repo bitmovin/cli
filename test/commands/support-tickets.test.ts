@@ -167,6 +167,25 @@ describe('support tickets list', () => {
     expect(cap.errOutput()).toContain('sub-org-1');
     expect(cap.errOutput()).toContain('bitmovin account organizations list');
   });
+
+  it('names the targeted organization even when the error does not carry one', async () => {
+    // The SDK's BitmovinError never carries tenantOrgId, so reading it off the error
+    // alone named the *configured* organization for a --organization request — the
+    // wrong one, and precisely the org the user did not ask about.
+    const denied = Object.assign(new Error('Access denied'), {httpStatusCode: 403});
+    apiRequest.mockRejectedValue(denied);
+    const cap = capture();
+    const {default: Cmd} = await import('../../src/commands/support/tickets/list.js');
+    try {
+      await Cmd.run(['--organization', 'sub-org-1']);
+    } catch (err) {
+      if (!isOclifExit(err)) throw err;
+    }
+
+    cap.restore();
+    expect(cap.errOutput()).toContain('sub-org-1');
+    expect(cap.errOutput()).not.toContain('config-org');
+  });
 });
 
 describe('support tickets get', () => {
@@ -220,6 +239,38 @@ describe('support tickets get', () => {
     await Cmd.run(['123456', '--show-secrets']);
     cap.restore();
     expect(cap.output()).toContain('token=SECRET');
+  });
+
+  it('hides attachment URLs in --json too, where masking used to be skipped entirely', async () => {
+    // JSON mode returned the raw payload, so `get --json` (which the --jq example
+    // steers users towards) handed every capability URL to a CI log.
+    const detail = {
+      ...ticket,
+      comments: [
+        {
+          id: 1,
+          body: 'logs attached',
+          attachments: [{id: 7, fileName: 'crash.log', url: 'https://files.example.com/crash.log?token=SECRET'}],
+        },
+      ],
+    };
+
+    apiRequest.mockResolvedValue(detail);
+    let cap = capture();
+    const {default: Cmd} = await import('../../src/commands/support/tickets/get.js');
+    await Cmd.run(['123456', '--json']);
+    cap.restore();
+
+    const masked = JSON.parse(cap.output());
+    expect(cap.output()).not.toContain('token=SECRET');
+    expect(masked.comments[0].attachments[0].fileName).toBe('crash.log');
+    expect(masked.comments[0].attachments[0].url).toContain('--show-secrets');
+
+    apiRequest.mockResolvedValue(detail);
+    cap = capture();
+    await Cmd.run(['123456', '--json', '--show-secrets']);
+    cap.restore();
+    expect(JSON.parse(cap.output()).comments[0].attachments[0].url).toContain('token=SECRET');
   });
 
   it('strips control characters from ticket text before printing it', async () => {
@@ -379,6 +430,15 @@ describe('support tickets comment', () => {
     const {default: Cmd} = await import('../../src/commands/support/tickets/comment.js');
     await expect(Cmd.run(['123456', '--body', 'hello', '--yes'])).rejects.toThrow(/collision protection/);
     expect(apiRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('bounds --body like create does, instead of previewing an unbounded file', async () => {
+    // create and comment now share one body resolver; while each had its own copy,
+    // only create applied the length cap.
+    apiRequest.mockResolvedValue(ticket);
+    const {default: Cmd} = await import('../../src/commands/support/tickets/comment.js');
+    await expect(Cmd.run(['123456', '--body', 'x'.repeat(65_537), '--yes'])).rejects.toThrow(/the maximum is 65536/);
+    expect(apiRequest).not.toHaveBeenCalled();
   });
 
   it('sends HTML as-is with --html', async () => {
