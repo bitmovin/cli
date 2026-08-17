@@ -52,27 +52,6 @@ export function abbreviate(text: string, headChars = 600, tailChars = 200): stri
   return `${text.slice(0, headChars)}\n… [${omitted} characters omitted] …${tail}`;
 }
 
-/**
- * Strips control and escape sequences before printing ticket text.
- *
- * Ticket subjects and comment bodies are attacker-influenceable — anyone who can
- * land a public comment (the requester, a CC'd party) controls them. The API
- * sanitizes HTML but not C0/ANSI, so raw output would let a comment rewrite the
- * rendered conversation, including forging the "(Bitmovin)" agent attribution a
- * reader relies on.
- */
-export function sanitizeForTerminal(text: string): string {
-  // CRLF is normalized first so a Windows-authored comment keeps its line breaks, and
-  // every remaining carriage return is then stripped along with the other controls.
-  // A lone \r returns the cursor to column 0, so "real text\r        misleading text"
-  // overwrites what was already printed — the same rewriting this function exists to
-  // prevent. Only tab and newline are kept.
-  return text
-    .replaceAll('\r\n', '\n')
-    /* eslint-disable-next-line no-control-regex -- stripping control characters is the point */
-    .replaceAll(/[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g, '');
-}
-
 /** Stands in for an attachment URL that was withheld. See {@link redactAttachmentUrls}. */
 export const HIDDEN_ATTACHMENT_URL = '[url hidden — pass --show-secrets]';
 
@@ -83,11 +62,17 @@ export const HIDDEN_ATTACHMENT_URL = '[url hidden — pass --show-secrets]';
  * holding the link, so it is masked like any other secret unless `--show-secrets` is
  * passed, matching `account info`. Applied to the payload before output rather than
  * while rendering the human view — `--json` (which the `--jq` example steers users
- * towards) would otherwise dump every capability URL into a CI log or a shared
+ * towards) would otherwise put the download link straight into a CI log or a shared
  * terminal session.
  *
  * The key is kept with a placeholder rather than deleted, so a JSON consumer can
  * still see that the attachment has a URL to ask for.
+ *
+ * Scope, deliberately: this masks the structured `attachments[].url` and nothing
+ * else. A link that appears *inside* comment text (an inline image in `htmlBody`, a
+ * URL someone typed) is printed as authored — that text is what the command exists
+ * to show, and pattern-matching URLs out of it would be unreliable in both
+ * directions while suggesting a completeness this does not have.
  */
 export function redactAttachmentUrls(detail: SupportTicketDetail): SupportTicketDetail {
   if (!detail.comments) return detail;

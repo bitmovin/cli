@@ -243,12 +243,12 @@ characters.
 
 | Flag | Applies to | Description |
 |------|-----------|-------------|
-| `--organization <org-id>` (alias `--tenant-org`) | all | Organization to act on, sent as `X-Tenant-Org-Id`. Defaults to `bitmovin config set organization`; omit both to use the organization of your credentials. For `create`, the body's `organizationId` is set to the same value whenever an organization is resolved — the API rejects a mismatch. An **empty** value (`--organization ""`, e.g. an unset shell variable) is rejected rather than quietly falling back. |
+| `--organization <org-id>` (alias `--tenant-org`) | all | Organization to act on, sent as `X-Tenant-Org-Id`. Defaults to `bitmovin config set organization`; omit both to use the organization of your credentials. For `create`, the body's `organizationId` is set to the same value whenever an organization is resolved — the API rejects a mismatch. An **empty** value (`--organization ""`, e.g. an unset shell variable) is rejected rather than quietly falling back, and `bitmovin config set organization ""` is refused for the same reason. |
 | `--body <text>` / `--body-file <path>` | `create`, `comment` | Ticket / comment text, inline or from a file. |
 | `--html` | `comment` | Send the comment as HTML. By default plain text is escaped and its line breaks are preserved. |
 | `--yes` / `-y` | `create`, `comment` | Confirm non-interactively. |
 | `--limit` / `--offset` | `list` | Page size (1–100, default 25) and offset (default 0). The offset must be `0` or a multiple of `--limit`; other values make the API silently return an earlier page, so the CLI rejects them. |
-| `--show-secrets` | `get` | Print attachment download URLs. They are hidden by default — in `--json` output too, where the `url` field carries a placeholder instead — because the URL alone grants access to the file to anyone holding the link. |
+| `--show-secrets` | `get` | Print attachment download URLs. They are hidden by default — in `--json` output too, where the `url` field carries a placeholder instead — because the URL alone grants access to the file to anyone holding the link. Comment text itself is printed as authored, so a link someone wrote (or an inline image in `htmlBody`) is shown either way. |
 | `--status`, `--category`, `--priority`, `--severity` | `list` | Comma-separated filters. Status: `new, open, pending, hold, solved, closed, deleted`. Category: `encoding, player, analytics, other`. Priority: `blocker, high, medium, low`. Severity: `high, medium, low, minor`. |
 | `--search <text>` | `list` | Full-text search, max 100 characters, letters/digits/spaces only (the API rejects punctuation). |
 | `--sort <expr>` | `list` | `createdAt` or `modifiedAt`, optionally `:ASC` / `:DESC`. |

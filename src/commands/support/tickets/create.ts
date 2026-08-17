@@ -2,6 +2,7 @@ import {Flags} from '@oclif/core';
 import chalk from 'chalk';
 import {BaseCommand} from '../../../lib/base-command.js';
 import {confirmDestructive, yesFlag} from '../../../lib/confirm.js';
+import {sanitizeForTerminal} from '../../../lib/sanitize.js';
 import {
   MAX_BODY_LENGTH,
   TICKET_CATEGORIES,
@@ -92,7 +93,11 @@ export default class SupportTicketsCreate extends BaseCommand {
       chalk.bold('Fields:'),
       JSON.stringify(rest, null, 2),
       chalk.bold(`Body (${body?.length ?? 0} characters):`),
-      abbreviate(body ?? ''),
+      // Sanitized even though it is the user's own input: a --body-file they did not
+      // author (a pasted terminal log, an agent-generated report) can carry escape
+      // sequences, and this text is printed directly above the irreversible-action
+      // warning and the y/N prompt it could repaint.
+      sanitizeForTerminal(abbreviate(body ?? '')),
       '',
     ];
     if (jsonMode) lines.push(chalk.dim('(payload echoed to stderr; ticket result follows on stdout)'), '');

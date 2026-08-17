@@ -273,6 +273,31 @@ describe('support tickets get', () => {
     expect(JSON.parse(cap.output()).comments[0].attachments[0].url).toContain('token=SECRET');
   });
 
+  it('warns about exposure when --show-secrets is passed, like account info does', async () => {
+    apiRequest.mockResolvedValue(ticket);
+    const cap = capture();
+    const {default: Cmd} = await import('../../src/commands/support/tickets/get.js');
+    await Cmd.run(['123456', '--show-secrets']);
+    cap.restore();
+
+    // On stderr, so it cannot corrupt --json output on stdout.
+    expect(cap.errOutput()).toContain('Avoid sharing terminal output');
+    expect(cap.output()).not.toContain('Avoid sharing terminal output');
+  });
+
+  it('sanitizes the revealed attachment URL too', async () => {
+    apiRequest.mockResolvedValue({
+      ...ticket,
+      comments: [{id: 1, body: 'x', attachments: [{id: 7, fileName: 'crash.log', url: 'https://files.example.com/a\u001B[2K?token=T'}]}],
+    });
+    const cap = capture();
+    const {default: Cmd} = await import('../../src/commands/support/tickets/get.js');
+    await Cmd.run(['123456', '--show-secrets']);
+    cap.restore();
+
+    expect(cap.output()).not.toContain('\u001B[2K');
+  });
+
   it('strips control characters from ticket text before printing it', async () => {
     apiRequest.mockResolvedValue({
       ...ticket,
@@ -361,6 +386,19 @@ describe('support tickets create', () => {
     expect(options.body.organizationId).toBe('sub-org-1');
   });
 
+  it('sanitizes the previewed body sitting above the confirmation prompt', async () => {
+    prompt.canPrompt = true;
+    prompt.answer = false;
+    const cap = capture();
+    const {default: Cmd} = await import('../../src/commands/support/tickets/create.js');
+    await Cmd.run(['--category', 'other', '--body', 'harmless\u001B[2K  forged']);
+    cap.restore();
+
+    expect(cap.errOutput()).toContain('REAL support ticket');
+    expect(cap.errOutput()).not.toContain('\u001B[2K');
+    expect(apiRequest).not.toHaveBeenCalled();
+  });
+
   it('rejects category-gated fields before asking for confirmation', async () => {
     const {default: Cmd} = await import('../../src/commands/support/tickets/create.js');
     await expect(Cmd.run(['--category', 'other', '--body', 'x', '--encoding-id', 'enc-1', '--yes'])).rejects.toThrow(
@@ -439,6 +477,22 @@ describe('support tickets comment', () => {
     const {default: Cmd} = await import('../../src/commands/support/tickets/comment.js');
     await expect(Cmd.run(['123456', '--body', 'x'.repeat(65_537), '--yes'])).rejects.toThrow(/the maximum is 65536/);
     expect(apiRequest).not.toHaveBeenCalled();
+  });
+
+  it('sanitizes the previewed body sitting above the confirmation prompt', async () => {
+    // A --body-file the user did not author (a pasted terminal log, a generated
+    // report) can carry escape sequences, and this preview prints directly above the
+    // irreversible-action warning and the y/N prompt.
+    apiRequest.mockResolvedValue(ticket);
+    prompt.canPrompt = true;
+    prompt.answer = false;
+    const cap = capture();
+    const {default: Cmd} = await import('../../src/commands/support/tickets/comment.js');
+    await Cmd.run(['123456', '--body', 'harmless\u001B[2K  PUBLIC comment is fine']);
+    cap.restore();
+
+    expect(cap.errOutput()).toContain('PUBLIC comment');
+    expect(cap.errOutput()).not.toContain('\u001B[2K');
   });
 
   it('sends HTML as-is with --html', async () => {

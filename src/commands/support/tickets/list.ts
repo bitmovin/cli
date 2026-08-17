@@ -1,5 +1,6 @@
 import {Flags} from '@oclif/core';
 import {BaseCommand} from '../../../lib/base-command.js';
+import {sanitizeForTerminal} from '../../../lib/sanitize.js';
 import {
   TICKET_CATEGORIES,
   TICKET_PRIORITIES,
@@ -9,7 +10,6 @@ import {
   listTickets,
   normalizeEnumFilter,
   normalizeSort,
-  sanitizeForTerminal,
   validateEnumFilter,
   validatePagination,
   validateSearchText,

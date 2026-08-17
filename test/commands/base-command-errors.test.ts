@@ -145,6 +145,26 @@ describe('BaseCommand error handling', () => {
     expect(capErr.output()).not.toContain('Could not reach the Bitmovin API');
   });
 
+  it('sanitizes the API-supplied error text before printing it', async () => {
+    // developerMessage falls back to the API's own message (which reflects submitted
+    // content) or to a snippet of a non-envelope response body, so it is the one
+    // error path carrying text the caller may not control. Raw, an escape sequence in
+    // it would repaint the lines printed above.
+    mockApiInstance = createErrorApi(404, {developerMessage: 'Not found\u001B[2K  forged line'});
+    const capErr = captureStderr();
+    const capOut = captureStdout();
+    const {default: Cmd} = await import('../../src/commands/encoding/jobs/get.js');
+    try {
+      await Cmd.run(['some-id']);
+    } catch (err) {
+      if (!isOclifExit(err)) throw err;
+    }
+    capErr.restore();
+    capOut.restore();
+    expect(capErr.output()).not.toContain('\u001B[2K');
+    expect(capErr.output()).toContain('Not found');
+  });
+
   it('outputs structured JSON error in --json mode for 404', async () => {
     mockApiInstance = createErrorApi(404, {developerMessage: 'Not found', requestId: 'req-123'});
     const capOut = captureStdout();

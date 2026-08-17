@@ -71,6 +71,16 @@ describe('resolveTenantOrgId', () => {
     expect(resolveTenantOrgId(undefined, undefined)).toBeUndefined();
   });
 
+  it('treats a blank configured organization as none, keeping header and body in step', () => {
+    // config tenantOrgId="" reached `create` as organizationId: "" (its guard is
+    // `!== undefined`) while apiRequest omitted X-Tenant-Org-Id (its guard is truthy),
+    // so the request claimed an empty organization in its body and none in its header.
+    expect(resolveTenantOrgId(undefined, '')).toBeUndefined();
+    expect(resolveTenantOrgId(undefined, '   ')).toBeUndefined();
+    // An explicit flag still wins over a useless configured value.
+    expect(resolveTenantOrgId('flag-org', '')).toBe('flag-org');
+  });
+
   it('rejects a blank flag value instead of silently widening the scope', () => {
     // `--organization "$SUB_ORG"` with SUB_ORG unset would otherwise drop the
     // X-Tenant-Org-Id header while still sending organizationId: "", which the API

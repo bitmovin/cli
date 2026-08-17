@@ -1,6 +1,6 @@
 import {Args} from '@oclif/core';
 import {BaseCommand} from '../../lib/base-command.js';
-import {loadConfig, saveConfig} from '../../lib/config.js';
+import {getConfigPath, loadConfig, saveConfig} from '../../lib/config.js';
 
 const VALID_KEYS: Record<string, string> = {
   'api-key': 'apiKey',
@@ -35,6 +35,13 @@ export default class ConfigSet extends BaseCommand {
     const configKey = VALID_KEYS[args.key];
     if (!configKey) {
       this.error(`Unknown key: ${args.key}. Valid keys: ${Object.keys(VALID_KEYS).join(', ')}`);
+    }
+
+    // An empty value would be stored and then mean "no organization" at request time,
+    // so the config would silently not say what it appears to say. Rejected here
+    // instead; `bitmovin config set organization <id>` is the only useful form.
+    if (args.value.trim() === '') {
+      this.error(`${args.key} cannot be set to an empty value. Pass a value, or edit ${getConfigPath()} to remove the key.`, {exit: 2});
     }
 
     const config = loadConfig();

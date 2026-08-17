@@ -39,6 +39,15 @@ function captureOutput(): {output: () => string; restore: () => void} {
 describe('config set', () => {
   beforeEach(() => configMock._reset());
 
+  it('refuses an empty value, which would be stored and then mean nothing', async () => {
+    // A stored organization of "" resolved to "no organization" at request time while
+    // still looking set in `config show`, and it made `create` send an empty
+    // organizationId with no matching X-Tenant-Org-Id header.
+    const {default: Cmd} = await import('../../src/commands/config/set.js');
+    await expect(Cmd.run(['organization', ''])).rejects.toThrow(/cannot be set to an empty value/);
+    expect(configMock._getStore().tenantOrgId).toBeUndefined();
+  });
+
   it('sets api-key', async () => {
     const cap = captureOutput();
     const {default: Cmd} = await import('../../src/commands/config/set.js');

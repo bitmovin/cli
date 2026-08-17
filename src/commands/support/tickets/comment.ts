@@ -2,6 +2,7 @@ import {Args, Flags} from '@oclif/core';
 import chalk from 'chalk';
 import {BaseCommand} from '../../../lib/base-command.js';
 import {confirmDestructive, yesFlag} from '../../../lib/confirm.js';
+import {sanitizeForTerminal} from '../../../lib/sanitize.js';
 import {
   MAX_COMMENT_LENGTH,
   type SupportTicketComment,
@@ -10,7 +11,6 @@ import {
   getTicket,
   latestComment,
   resolveBodyInput,
-  sanitizeForTerminal,
   toHtmlBody,
   validateCommentBody,
 } from '../../../lib/support-tickets.js';
@@ -128,7 +128,11 @@ export default class SupportTicketsComment extends BaseCommand {
       );
     }
 
-    lines.push(chalk.bold('Your comment:'), abbreviate(htmlBody ?? ''), '');
+    // Sanitized even though it is the user's own input: a --body-file they did not
+    // author (a pasted terminal log, an agent-generated report) can carry escape
+    // sequences, and this text is printed directly above the irreversible-action
+    // warning and the y/N prompt it could repaint.
+    lines.push(chalk.bold('Your comment:'), sanitizeForTerminal(abbreviate(htmlBody ?? '')), '');
     return lines.join('\n');
   }
 }

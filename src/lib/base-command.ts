@@ -1,6 +1,7 @@
 import {Command, Flags} from '@oclif/core';
 import chalk from 'chalk';
 import {getClient, type ApiClient} from './client.js';
+import {sanitizeForTerminal} from './sanitize.js';
 import {resolveTenantOrgId} from './tenant.js';
 import {formatJson, formatTable, formatKeyValue, isTTY} from './output.js';
 import {applyJq} from './jq.js';
@@ -123,7 +124,7 @@ export abstract class BaseCommand extends Command {
         case 404:
           lines.push(chalk.red('Resource not found.'));
           if (err.developerMessage) {
-            lines.push(`  ${err.developerMessage}`);
+            lines.push(`  ${sanitizeForTerminal(err.developerMessage)}`);
           }
           break;
         case 409:
@@ -138,16 +139,21 @@ export abstract class BaseCommand extends Command {
           lines.push('    bitmovin support tickets get <case-id>');
           if (err.developerMessage) {
             lines.push('');
-            lines.push(`  ${err.developerMessage}`);
+            lines.push(`  ${sanitizeForTerminal(err.developerMessage)}`);
           }
 
           break;
         default:
           lines.push(chalk.red(`API error: ${err.httpStatusCode}`));
+          // Sanitized: this is API-supplied text, and it is the one error path that
+          // can carry content the caller does not control — `developerMessage` falls
+          // back to the API's own message (which reflects submitted values) or to a
+          // snippet of a non-envelope response body. Raw, an escape sequence in it
+          // would repaint the lines already printed above.
           if (err.developerMessage) {
-            lines.push(`  ${err.developerMessage}`);
+            lines.push(`  ${sanitizeForTerminal(err.developerMessage)}`);
           } else if (err.message) {
-            lines.push(`  ${err.message}`);
+            lines.push(`  ${sanitizeForTerminal(err.message)}`);
           }
       }
 

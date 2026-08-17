@@ -146,8 +146,26 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   return (envelope.data.result ?? {}) as T;
 }
 
+/**
+ * A short excerpt of a response body that is not a Bitmovin envelope, used as the
+ * developer message so a gateway answering with an HTML maintenance page is
+ * diagnosable rather than a bare status code.
+ *
+ * Deliberately short: the body comes from whatever answered the request, so it may
+ * carry context the user did not put there (reflected request data, internal
+ * hostnames) and it is surfaced in the terminal and in `--json` output. Enough to
+ * recognise what replied, not a dump of it. `BaseCommand` sanitizes it before
+ * printing.
+ */
+const MAX_BODY_EXCERPT = 200;
+
 function truncate(text: string): string | undefined {
-  const trimmed = text.trim();
-  if (!trimmed) return undefined;
-  return trimmed.length > 500 ? `${trimmed.slice(0, 500)}…` : trimmed;
+  // Sliced before trimming, over a window wide enough to survive a leading run of
+  // whitespace: the body is unbounded, so there is no reason to normalize megabytes
+  // to produce a 200-character excerpt.
+  const window = text.slice(0, MAX_BODY_EXCERPT * 5);
+  const excerpt = window.trim().slice(0, MAX_BODY_EXCERPT);
+  if (!excerpt) return undefined;
+  const isComplete = window.length === text.length && window.trim().length === excerpt.length;
+  return isComplete ? excerpt : `${excerpt}…`;
 }
