@@ -7,14 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-17
+
 ### Added
 
-- `bitmovin account organizations list` shows every visible organization with its `type` (`ROOT_ORGANIZATION` / `SUB_ORGANIZATION`), `parentId`, and whether it is the active one, ordering sub-organizations directly under their parent. `--type root|sub` and `--parent <org-id>` narrow the listing.
+- `bitmovin account organizations list` shows every visible organization with its `type` (`ROOT_ORGANIZATION` / `SUB_ORGANIZATION`), `parentId`, and whether it is the active one, ordering sub-organizations directly under their parent. `--type root|sub` and `--parent <org-id>` narrow the listing; it takes no `--organization`, since the endpoint is scoped by the credential rather than by `X-Tenant-Org-Id`.
 - `bitmovin support tickets list | get | create | comment` for Bitmovin support tickets. `--organization <org-id>` (alias `--tenant-org`) scopes any of them to a sub-organization via `X-Tenant-Org-Id`, and `create` always sends a body `organizationId` matching that header because the API rejects a mismatch.
   - `create` and `comment` are irreversible: both print the exact payload to stderr — always, including under `--json`, so a scripted run still records what was filed and against which organization — state that Bitmovin support engineers will see it and that it cannot be withdrawn via the API, and require an explicit confirmation. `--yes` / `--confirm` skips the prompt and is required for non-interactive use — without a TTY (or in `--json` mode) the commands refuse to send instead of silently filing a ticket.
   - `comment` reads the ticket's `modifiedAt` and sends it as the API-required `updatedStamp` collision stamp, so callers never see the misleading `1004 … Check your JSON syntax` error that a missing stamp produces. The ticket's newest comment is shown in the confirmation, so the stamp corresponds to the state the user actually saw.
   - `list` rejects an `--offset` that is not `0` or a multiple of `--limit` (the API silently serves an earlier page otherwise), plus invalid `--search` text, filter values, and `--sort` expressions, before making a request. Filter spacing is normalized, since the API splits on `,` without trimming.
-  - `get` hides attachment download URLs unless `--show-secrets` is passed: the URL alone grants access to the file to anyone holding the link. Ticket subjects and comment bodies are stripped of control characters before printing, so customer-supplied text cannot rewrite the rendered conversation or forge the `(Bitmovin)` agent attribution.
+  - `get` hides attachment download URLs unless `--show-secrets` is passed — in `--json` output too, where the `url` field carries a placeholder — because the URL alone grants access to the file to anyone holding the link. Passing `--show-secrets` prints an exposure warning to stderr, matching `account info`. Ticket subjects and comment bodies are stripped of control characters before printing, so customer-supplied text cannot rewrite the rendered conversation or forge the `(Bitmovin)` agent attribution.
   - An empty `--organization ""` is rejected rather than silently falling back, which would otherwise widen a write from the intended sub-organization to the credential's own organization.
   - `--allow-file-access` requires `--category encoding`, and `--body-file` is capped at 65,536 characters with a head-and-tail preview. The API accepts a mismatched category and silently drops the field, so the check has to be local.
 
@@ -30,9 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--sort createdAt:desc` is uppercased before it is sent; validation accepted it case-insensitively while the API silently ignored the direction.
 - `409` now explains that the resource changed since it was read (the case the comment collision stamp exists to catch) instead of `API error: 409`, and network failures and the request timeout are reported in plain language — the timeout deliberately does not promise a retry is safe, since it fires after the request was sent.
 - `config list organizations` no longer nests a sub-organization under an unrelated root when its real parent is not visible to the credential; it is listed at top level and labelled.
-- Terminal sanitization extended to the comment confirmation's ticket subject and to the requester and organization names in `tickets get`.
+- Terminal sanitization moved to the output boundary: `sanitizeForTerminal` lives in `lib/sanitize.ts` and `lib/output.ts` strips control characters from every rendered table and key-value cell, so a newly rendered field is safe by default instead of waiting for someone to wrap it. The API's own error text, the confirmation previews, and the attachment line are sanitized at their own write sites, since those bypass the table renderer.
 - Organizations are paged through in full. The generated SDK's `organizations.list()` accepts no query parameters and so returned only the API's default first page — on a larger account, sub-organizations whose parent sat on a later page were rendered as roots, and `--parent` reported a visible organization as invisible. A short page while the API reports more now fails loudly rather than returning a truncated list.
 - The `403 Access denied` hint now names the organization the failed request was actually scoped to (including one passed via `--organization`) and points at `bitmovin account organizations list`.
+- `bitmovin config set <key> ""` is refused, and a blank organization already in the config file is treated as "no organization". Stored empty, it looked set in `config show` while making `create` send an `organizationId` of `""` with no matching `X-Tenant-Org-Id` header.
+- `--limit` / `--offset` are declared once as `BaseCommand.paginationFlags()` and shared by every list command, instead of being repeated in each one.
+- A transport failure is recognised by its cause code rather than by "network" or "socket" appearing in the message, so a genuine `TypeError` is reported with its own message and stack instead of as a connectivity problem.
 
 ## [0.4.0] - 2026-05-26
 
